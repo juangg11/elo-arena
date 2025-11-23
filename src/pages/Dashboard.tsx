@@ -44,7 +44,7 @@ const Dashboard = () => {
   const mockProfile = {
     nickname: user.user_metadata?.nickname || "Player",
     elo: 1200,
-    rank: "Gold",
+    rank: "Hero",
     gamesPlayed: 0,
     wins: 0,
     winrate: 0,
@@ -121,12 +121,12 @@ const Dashboard = () => {
         {/* Recent Matches Placeholder */}
         <Card className="mt-6 border-border/50">
           <CardHeader>
-            <CardTitle>Recent Matches</CardTitle>
+            <CardTitle>Historial de partidos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center py-12 text-muted-foreground">
               <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No matches yet. Start your competitive journey!</p>
+              <p>Sin partidos aún.</p>
             </div>
           </CardContent>
         </Card>

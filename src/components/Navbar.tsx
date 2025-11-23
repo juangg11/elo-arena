@@ -11,17 +11,13 @@ const Navbar = () => {
             <Trophy className="h-6 w-6 text-primary" />
           </div>
           <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            MatchArena
+            Hero-Arena
           </span>
         </Link>
 
         <div className="flex items-center gap-6">
-          <Link to="/ladder" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Rankings
-          </Link>
           <Link to="/auth">
             <Button variant="outline" className="gap-2">
-              <Swords className="h-4 w-4" />
               Login
             </Button>
           </Link>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,8 @@ const Auth = () => {
   const [nickname, setNickname] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get("redirect") || "/dashboard";
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -40,7 +42,7 @@ const Auth = () => {
         title: "Success",
         description: "Logged in successfully!",
       });
-      navigate("/dashboard");
+      navigate(redirect);
     }
   };
 
@@ -52,7 +54,7 @@ const Auth = () => {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}${redirect}`,
         data: {
           nickname,
         },
@@ -74,6 +76,14 @@ const Auth = () => {
       });
     }
   };
+
+  // If using social login / magic links, redirect once auth state changes
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) navigate(redirect);
+    });
+    return () => sub?.subscription.unsubscribe();
+  }, [navigate, redirect]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20 p-4">

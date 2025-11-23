@@ -6,14 +6,42 @@ interface RankBadgeProps {
 }
 
 const rankColors: Record<string, string> = {
-  bronze: "bg-rank-bronze",
-  silver: "bg-rank-silver",
-  gold: "bg-rank-gold",
-  platinum: "bg-rank-platinum",
-  diamond: "bg-rank-diamond",
-  master: "bg-rank-master",
-  grandmaster: "bg-rank-grandmaster",
-  elite: "bg-rank-elite",
+  novato: "bg-rank-bronze",
+  aspirante: "bg-rank-silver",
+  promesa: "bg-rank-gold",
+  relampago: "bg-rank-platinum",
+  tormenta: "bg-rank-diamond",
+  supernova: "bg-rank-master",
+  inazuma: "bg-rank-grandmaster",
+  heroe: "bg-rank-elite",
+};
+
+const displayNames: Record<string, string> = {
+  novato: "Novato",
+  aspirante: "Aspirante",
+  promesa: "Promesa",
+  relampago: "Relámpago",
+  tormenta: "Tormenta",
+  supernova: "Supernova",
+  inazuma: "Inazuma",
+  heroe: "Héroe",
+};
+
+// Aliases to accept different incoming rank names (english/variants) and map them to internal keys
+const rankAliases: Record<string, string> = {
+  hero: "heroe",
+  héroe: "heroe",
+  heroe: "heroe",
+  bronzE: "novato",
+  bronze: "novato",
+  plata: "aspirante",
+  silver: "aspirante",
+  gold: "promesa",
+  platinum: "relampago",
+  diamond: "tormenta",
+  master: "supernova",
+  grandmaster: "inazuma",
+  elite: "heroe",
 };
 
 const RankBadge = ({ rank, size = "md" }: RankBadgeProps) => {
@@ -23,16 +51,24 @@ const RankBadge = ({ rank, size = "md" }: RankBadgeProps) => {
     lg: "text-base px-4 py-2",
   };
 
+  // Provide a consistent minimum width for badges on non-sm sizes
+  const widthClass = size === "sm" ? "" : "min-w-[6rem] justify-center";
   return (
     <div
       className={cn(
         "inline-flex items-center gap-2 rounded-lg font-bold uppercase tracking-wide",
         rankColors[rank.toLowerCase()] || "bg-muted",
         sizeClasses[size],
-        "text-background shadow-lg"
+        widthClass,
+        "text-background shadow-lg text-center"
       )}
     >
-      <span>{rank}</span>
+      {(() => {
+        const raw = rank.toLowerCase();
+        const normalized = rankAliases[raw] ?? raw;
+        const display = displayNames[normalized] ?? rank;
+        return <span>{display}</span>;
+      })()}
     </div>
   );
 };

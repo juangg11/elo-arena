@@ -8,7 +8,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 33% 4%;
+    --background: 210 30% 5%;
     --foreground: 210 20% 98%;
 
     --card: 213 40% 8%;
@@ -40,13 +40,13 @@ All colors MUST be HSL.
 
     /* Gaming competitive colors */
     --rank-bronze: 25 75% 47%;
-    --rank-silver: 0 0% 75%;
-    --rank-gold: 43 100% 50%;
+    --rank-silver: 360 88.8% 60.6%;
+    --rank-gold: 130 91.7% 44.7%;
     --rank-platinum: 180 25% 65%;
     --rank-diamond: 210 100% 65%;
     --rank-master: 275 70% 60%;
-    --rank-grandmaster: 340 100% 50%;
-    --rank-elite: 30 100% 55%;
+    --rank-grandmaster: 43 100% 50%;
+    --rank-elite: 109 44.5% 94.9%;
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(191, 100%, 50%), hsl(213, 55%, 12%));

@@ -14,7 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      matches: {
+        Row: {
+          created_at: string
+          elo_after_a: number | null
+          elo_after_b: number | null
+          elo_before_a: number
+          elo_before_b: number
+          evidence_urls: string[] | null
+          finished_at: string | null
+          id: string
+          player_a_id: string
+          player_b_id: string
+          status: string
+          winner_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          elo_after_a?: number | null
+          elo_after_b?: number | null
+          elo_before_a: number
+          elo_before_b: number
+          evidence_urls?: string[] | null
+          finished_at?: string | null
+          id?: string
+          player_a_id: string
+          player_b_id: string
+          status?: string
+          winner_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          elo_after_a?: number | null
+          elo_after_b?: number | null
+          elo_before_a?: number
+          elo_before_b?: number
+          evidence_urls?: string[] | null
+          finished_at?: string | null
+          id?: string
+          player_a_id?: string
+          player_b_id?: string
+          status?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_player_a_id_fkey"
+            columns: ["player_a_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "matches_player_b_id_fkey"
+            columns: ["player_b_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          elo: number
+          games_played: number
+          id: string
+          nickname: string
+          rank: string
+          region: string
+          updated_at: string
+          user_id: string
+          wins: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          elo?: number
+          games_played?: number
+          id?: string
+          nickname: string
+          rank?: string
+          region?: string
+          updated_at?: string
+          user_id: string
+          wins?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          elo?: number
+          games_played?: number
+          id?: string
+          nickname?: string
+          rank?: string
+          region?: string
+          updated_at?: string
+          user_id?: string
+          wins?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

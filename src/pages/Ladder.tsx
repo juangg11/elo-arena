@@ -1,21 +1,58 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import RankBadge from "@/components/RankBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Medal, Crown } from "lucide-react";
 
+interface Player {
+  rank: number;
+  nickname: string;
+  elo: number;
+  rankName: string;
+  wins: number;
+  losses: number;
+  region: string;
+}
+
 const Ladder = () => {
   const [selectedRegion, setSelectedRegion] = useState("global");
+  const [leaderboard, setLeaderboard] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock leaderboard data - will be replaced with real data
-  const mockLeaderboard = [
-    { rank: 1, nickname: "ProGamer", elo: 2850, rankName: "heroe", wins: 156, losses: 44, region: "EU" },
-    { rank: 2, nickname: "ChessM", elo: 2780, rankName: "heroe", wins: 142, losses: 38, region: "NA" },
-    { rank: 3, nickname: "Tactician", elo: 2310, rankName: "inazuma", wins: 128, losses: 42, region: "EU" },
-    { rank: 4, nickname: "StrategyKing", elo: 2245, rankName: "inazuma", wins: 115, losses: 35, region: "LATAM" },
-    { rank: 5, nickname: "CompPlayer", elo: 2180, rankName: "inazuma", wins: 98, losses: 32, region: "ASIA" },
-  ];
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [selectedRegion]);
+
+  const fetchLeaderboard = async () => {
+    setLoading(true);
+    let query = supabase
+      .from("profiles")
+      .select("*")
+      .order("elo", { ascending: false })
+      .limit(50);
+
+    if (selectedRegion !== "global") {
+      query = query.eq("region", selectedRegion);
+    }
+
+    const { data, error } = await query;
+
+    if (data) {
+      const formattedData: Player[] = data.map((profile, index) => ({
+        rank: index + 1,
+        nickname: profile.nickname,
+        elo: profile.elo,
+        rankName: profile.rank,
+        wins: profile.wins,
+        losses: profile.games_played - profile.wins,
+        region: profile.region,
+      }));
+      setLeaderboard(formattedData);
+    }
+    setLoading(false);
+  };
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="h-5 w-5 text-accent" />;
@@ -53,8 +90,13 @@ const Ladder = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {mockLeaderboard.map((player) => (
+                {loading ? (
+                  <div className="text-center py-8 text-muted-foreground">Cargando...</div>
+                ) : leaderboard.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No hay jugadores en esta región</div>
+                ) : (
+                  <div className="space-y-3">
+                    {leaderboard.map((player) => (
                     <div
                       key={player.rank}
                       className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50"
@@ -78,8 +120,9 @@ const Ladder = () => {
                         <RankBadge rank={player.rankName} />
                       </div>
                     </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

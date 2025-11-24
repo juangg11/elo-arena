@@ -111,9 +111,6 @@ const Dashboard = () => {
                 <TrendingUp className="h-5 w-5" />
                 Match History
               </Button>
-              <Button variant="destructive" className="w-full" onClick={handleLogout}>
-                Logout
-              </Button>
             </CardContent>
           </Card>
         </div>

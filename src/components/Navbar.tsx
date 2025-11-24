@@ -1,8 +1,37 @@
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Trophy, Swords } from "lucide-react";
+import { Trophy } from "lucide-react";
 
 const Navbar = () => {
+  const navigate = useNavigate();
+  const [isLogged, setIsLogged] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setIsLogged(!!data.user);
+    };
+
+    checkUser();
+
+    // Opcional: escuchar cambios de sesión
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLogged(!!session?.user);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsLogged(false);
+    navigate("/auth");
+  };
+
   return (
     <nav className="fixed top-0 w-full z-50 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -16,11 +45,17 @@ const Navbar = () => {
         </Link>
 
         <div className="flex items-center gap-6">
-          <Link to="/auth">
-            <Button variant="outline" className="gap-2">
-              Login
+          {isLogged ? (
+            <Button variant="destructive" className="w-full" onClick={handleLogout}>
+              Logout
             </Button>
-          </Link>
+          ) : (
+            <Link to="/auth">
+              <Button variant="outline" className="gap-2">
+                Login
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     </nav>

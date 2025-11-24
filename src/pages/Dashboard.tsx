@@ -8,14 +8,39 @@ import Navbar from "@/components/Navbar";
 import RankBadge from "@/components/RankBadge";
 import { Trophy, Swords, TrendingUp, User as UserIcon } from "lucide-react";
 
+interface Profile {
+  nickname: string;
+  elo: number;
+  rank: string;
+  games_played: number;
+  wins: number;
+  region: string;
+}
+
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchProfile = async (userId: string) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (data) {
+        setProfile(data);
+      }
+      setLoading(false);
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
+        fetchProfile(session.user.id);
       } else {
         navigate("/auth");
       }
@@ -27,29 +52,19 @@ const Dashboard = () => {
       setUser(session?.user ?? null);
       if (!session) {
         navigate("/auth");
+      } else {
+        fetchProfile(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  };
+  if (!user || loading || !profile) return null;
 
-  if (!user) return null;
-
-  // Mock data - will be replaced with real data from database
-  const mockProfile = {
-    nickname: user.user_metadata?.nickname || "Player",
-    elo: 1200,
-    rank: "Hero",
-    gamesPlayed: 0,
-    wins: 0,
-    winrate: 0,
-    region: "EU",
-  };
+  const winrate = profile.games_played > 0 
+    ? Math.round((profile.wins / profile.games_played) * 100) 
+    : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,28 +80,28 @@ const Dashboard = () => {
                   <UserIcon className="h-8 w-8 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl">{mockProfile.nickname}</CardTitle>
-                  <p className="text-sm text-muted-foreground">Region: {mockProfile.region}</p>
+                  <CardTitle className="text-2xl">{profile.nickname}</CardTitle>
+                  <p className="text-sm text-muted-foreground">Region: {profile.region}</p>
                 </div>
               </div>
-              <RankBadge rank={mockProfile.rank} size="lg" />
+              <RankBadge rank={profile.rank} size="lg" />
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 rounded-lg bg-muted/50">
-                  <div className="text-3xl font-bold text-primary">{mockProfile.elo}</div>
+                  <div className="text-3xl font-bold text-primary">{profile.elo}</div>
                   <div className="text-xs text-muted-foreground uppercase">ELO Rating</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-muted/50">
-                  <div className="text-3xl font-bold">{mockProfile.gamesPlayed}</div>
+                  <div className="text-3xl font-bold">{profile.games_played}</div>
                   <div className="text-xs text-muted-foreground uppercase">Matches</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-muted/50">
-                  <div className="text-3xl font-bold text-accent">{mockProfile.wins}</div>
+                  <div className="text-3xl font-bold text-accent">{profile.wins}</div>
                   <div className="text-xs text-muted-foreground uppercase">Wins</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-muted/50">
-                  <div className="text-3xl font-bold">{mockProfile.winrate}%</div>
+                  <div className="text-3xl font-bold">{winrate}%</div>
                   <div className="text-xs text-muted-foreground uppercase">Win Rate</div>
                 </div>
               </div>

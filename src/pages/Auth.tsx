@@ -9,11 +9,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
+  const [region, setRegion] = useState("ES");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -50,14 +52,11 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}${redirect}`,
-        data: {
-          nickname,
-        },
+        data: { nickname, region },
       },
     });
 
@@ -70,13 +69,24 @@ const Auth = () => {
         variant: "destructive",
       });
     } else {
-      toast({
-        title: "Success",
-        description: "Account created! Please check your email.",
-      });
+      if (!data.session) {
+        toast({
+          title: "¡Verifica tu email!",
+          description: "Te hemos enviado un correo para confirmar tu cuenta. Por favor, verifícalo antes de iniciar sesión.",
+          duration: 6000,
+        });
+        // Switch to login tab to encourage login after verification
+        const loginTab = document.querySelector('[value="login"]') as HTMLElement;
+        if (loginTab) loginTab.click();
+      } else {
+        toast({
+          title: "¡Cuenta creada!",
+          description: "Ahora puedes configurar tu perfil.",
+        });
+        navigate("/create-profile");
+      }
     }
   };
-
   // If using social login / magic links, redirect once auth state changes
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
@@ -151,6 +161,19 @@ const Auth = () => {
                       onChange={(e) => setNickname(e.target.value)}
                       required
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-region">Región</Label>
+                    <Select value={region} onValueChange={setRegion}>
+                      <SelectTrigger id="signup-region">
+                        <SelectValue placeholder="Selecciona tu región" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="EU">Europa</SelectItem>
+                        <SelectItem value="AM">América</SelectItem>
+                        <SelectItem value="AS">Asia</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>

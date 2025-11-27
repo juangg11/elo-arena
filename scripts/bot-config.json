@@ -1,0 +1,49 @@
+{
+    "bots": [
+        {
+            "name": "Bot EU Low",
+            "email": "bot-eu-low@test.com",
+            "password": "TestBot123!",
+            "region": "EU",
+            "elo": 600,
+            "autoChat": true,
+            "chatMessages": [
+                "Hola! Listo para jugar?",
+                "Buena suerte!",
+                "GG!"
+            ],
+            "autoResult": "win",
+            "delayBeforeResult": 30000
+        },
+        {
+            "name": "Bot AM Mid",
+            "email": "bot-am-mid@test.com",
+            "password": "TestBot123!",
+            "region": "AM",
+            "elo": 900,
+            "autoChat": true,
+            "chatMessages": [
+                "Hey! Ready to play?",
+                "Let's go!",
+                "Good game!"
+            ],
+            "autoResult": "lose",
+            "delayBeforeResult": 30000
+        },
+        {
+            "name": "Bot AS High",
+            "email": "bot-as-high@test.com",
+            "password": "TestBot123!",
+            "region": "AS",
+            "elo": 1200,
+            "autoChat": true,
+            "chatMessages": [
+                "你好！准备好了吗？",
+                "开始吧！",
+                "打得好！"
+            ],
+            "autoResult": "win",
+            "delayBeforeResult": 30000
+        }
+    ]
+}

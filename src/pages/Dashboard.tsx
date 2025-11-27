@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
 import RankBadge from "@/components/RankBadge";
 import { Trophy, Swords, TrendingUp, User as UserIcon } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Profile {
   nickname: string;
@@ -15,6 +16,7 @@ interface Profile {
   games_played: number;
   wins: number;
   region: string;
+  avatar_url: string | null;
 }
 
 const Dashboard = () => {
@@ -62,23 +64,26 @@ const Dashboard = () => {
 
   if (!user || loading || !profile) return null;
 
-  const winrate = profile.games_played > 0 
-    ? Math.round((profile.wins / profile.games_played) * 100) 
+  const winrate = profile.games_played > 0
+    ? Math.round((profile.wins / profile.games_played) * 100)
     : 0;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-4 pt-24 pb-12">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Profile Card */}
           <Card className="lg:col-span-2 border-border/50 bg-gradient-to-br from-card to-card/50">
             <CardHeader className="flex flex-row items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center">
-                  <UserIcon className="h-8 w-8 text-primary" />
-                </div>
+                <Avatar className="h-16 w-16 border-2 border-primary/20">
+                  <AvatarImage src={profile.avatar_url || ""} alt={profile.nickname} />
+                  <AvatarFallback className="bg-primary/10">
+                    <UserIcon className="h-8 w-8 text-primary" />
+                  </AvatarFallback>
+                </Avatar>
                 <div>
                   <CardTitle className="text-2xl">{profile.nickname}</CardTitle>
                   <p className="text-sm text-muted-foreground">Region: {profile.region}</p>
@@ -111,20 +116,20 @@ const Dashboard = () => {
           {/* Quick Actions */}
           <Card className="border-border/50">
             <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
+              <CardTitle>Acciones rápidas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full gap-2" size="lg">
+              <Button className="w-full gap-2" size="lg" onClick={() => navigate("/matchmaking")}>
                 <Swords className="h-5 w-5" />
-                Find Match
+                Buscar partido
               </Button>
               <Button variant="outline" className="w-full gap-2" onClick={() => navigate("/ladder")}>
                 <Trophy className="h-5 w-5" />
-                View Rankings
+                Ver Rankings
               </Button>
               <Button variant="outline" className="w-full gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Match History
+                Historial de partidos
               </Button>
             </CardContent>
           </Card>

@@ -831,7 +831,15 @@ const MatchPage = () => {
             console.log('Report created successfully:', reportData);
 
             if (match.status === 'pending') {
-                await supabase.from('matches').update({ status: 'reported' }).eq('id', matchId);
+                const { error: statusError } = await supabase
+                    .from('matches')
+                    .update({ status: 'reported' })
+                    .eq('id', matchId);
+                
+                if (statusError) {
+                    console.error('Error updating match status:', statusError);
+                    // Don't fail the report creation if status update fails
+                }
             }
 
             toast({ title: "Reporte Enviado", description: "El caso será revisado por un administrador." });

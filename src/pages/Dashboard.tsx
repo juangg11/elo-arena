@@ -121,6 +121,43 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // Subscribe to profile changes for real-time updates
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const profileChannel = supabase
+      .channel(`profile-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${profile.id}`
+        },
+        () => {
+          // Refresh profile when it changes
+          if (user) {
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', user.id)
+              .single()
+              .then(({ data }) => {
+                if (data) {
+                  setProfile(data);
+                }
+              });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+    };
+  }, [profile?.id, user]);
+
   if (!user || loading || !profile) return null;
 
   const winrate = profile.games_played > 0

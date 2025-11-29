@@ -48,6 +48,32 @@ const Profile = () => {
         return () => subscription.unsubscribe();
     }, [navigate]);
 
+    // Subscribe to profile changes for real-time updates
+    useEffect(() => {
+        if (!profile?.id) return;
+
+        const profileChannel = supabase
+            .channel(`profile-${profile.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${profile.id}`
+                },
+                () => {
+                    // Refresh profile when it changes
+                    fetchProfile();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(profileChannel);
+        };
+    }, [profile?.id]);
+
     const fetchProfile = async () => {
         const { data: { session } } = await supabase.auth.getSession();
 

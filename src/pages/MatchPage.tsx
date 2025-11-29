@@ -347,15 +347,31 @@ const MatchPage = () => {
 
             // 2. Check if we can finalize (opponent already submitted)
             // Re-fetch match to get latest results from DB
-            const { data: updatedMatch } = await supabase
+            const { data: updatedMatch, error: matchFetchError } = await supabase
                 .from('matches')
                 .select('result_a, result_b, status')
                 .eq('id', matchId)
                 .single();
 
+            if (matchFetchError) {
+                console.error('Error fetching updated match:', matchFetchError);
+                toast({
+                    title: "Error",
+                    description: "No se pudo verificar el estado del partido.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
             const currentOpponentResult = isPlayer1 
                 ? (updatedMatch as any)?.result_b 
                 : (updatedMatch as any)?.result_a;
+
+            console.log('Checking match results:', {
+                myResult: result,
+                opponentResult: currentOpponentResult,
+                isPlayer1
+            });
 
             if (currentOpponentResult) {
                 let newStatus = '';
@@ -365,48 +381,79 @@ const MatchPage = () => {
                     (result === 'win' && currentOpponentResult === 'win') ||
                     (result === 'lose' && currentOpponentResult === 'lose')
                 ) {
+                    console.log('CONFLICT DETECTED! Both players claim:', result);
                     newStatus = 'reported';
 
                     // Get user_id (not profile_id) for the report
-                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
                     
-                    if (!currentUser) {
-                        console.error('No authenticated user found');
+                    if (userError || !currentUser) {
+                        console.error('No authenticated user found:', userError);
                         toast({
                             title: "Error",
                             description: "No se pudo identificar al usuario para crear el reporte.",
                             variant: "destructive"
                         });
                     } else {
-                        // Auto-create report for conflict
-                        console.log('Creating conflict report...', { matchId, reporterId: currentUser.id });
-                        const { data: reportData, error: reportError } = await supabase
+                        // Check if report already exists for this match
+                        const { data: existingReports } = await supabase
                             .from('reports')
-                            .insert({
-                                match_id: matchId,
-                                reporter_id: currentUser.id, // Use user_id, not profile_id
-                                description: `Reporte automático: Conflicto de resultados. Tú declaraste ${result === 'win' ? 'victoria' : 'derrota'}, el rival declaró ${currentOpponentResult === 'win' ? 'victoria' : 'derrota'}.`,
-                                status: 'pending'
-                            } as any)
-                            .select();
-
-                        if (reportError) {
-                            console.error("Error creating auto-report:", reportError);
-                            toast({
-                                title: "Error",
-                                description: `Error al crear reporte: ${reportError.message}`,
-                                variant: "destructive"
+                            .select('id')
+                            .eq('match_id', matchId)
+                            .limit(1);
+                        
+                        if (existingReports && existingReports.length > 0) {
+                            console.log('Report already exists for this match, skipping creation');
+                            toast({ 
+                                title: "Conflicto detectado", 
+                                description: "Los resultados no coinciden. Ya existe un reporte para este partido.", 
+                                variant: "destructive" 
                             });
                         } else {
-                            console.log('Report created successfully:', reportData);
+                            // Auto-create report for conflict
+                            console.log('Creating conflict report...', { 
+                                matchId, 
+                                reporterId: currentUser.id,
+                                myResult: result,
+                                opponentResult: currentOpponentResult
+                            });
+                            
+                            const reportDescription = `Reporte automático: Conflicto de resultados. Tú declaraste ${result === 'win' ? 'victoria' : 'derrota'}, el rival declaró ${currentOpponentResult === 'win' ? 'victoria' : 'derrota'}.`;
+                            
+                            const { data: reportData, error: reportError } = await supabase
+                                .from('reports')
+                                .insert({
+                                    match_id: matchId,
+                                    reporter_id: currentUser.id, // Use user_id, not profile_id
+                                    description: reportDescription,
+                                    status: 'pending'
+                                } as any)
+                                .select();
+
+                            if (reportError) {
+                                console.error("Error creating auto-report:", reportError);
+                                console.error("Report error details:", JSON.stringify(reportError, null, 2));
+                                console.error("Report insert payload:", {
+                                    match_id: matchId,
+                                    reporter_id: currentUser.id,
+                                    description: reportDescription,
+                                    status: 'pending'
+                                });
+                                toast({
+                                    title: "Error",
+                                    description: `Error al crear reporte: ${reportError.message}`,
+                                    variant: "destructive"
+                                });
+                            } else {
+                                console.log('Report created successfully:', reportData);
+                                toast({ 
+                                    title: "Conflicto detectado", 
+                                    description: "Los resultados no coinciden. Se ha generado un reporte automático.", 
+                                    variant: "destructive" 
+                                });
+                            }
                         }
                     }
-
-                    toast({ 
-                        title: "Conflicto detectado", 
-                        description: "Los resultados no coinciden. Se ha generado un reporte automático.", 
-                        variant: "destructive" 
-                    });
                 } else if (
                     (result === 'win' && currentOpponentResult === 'lose') ||
                     (result === 'lose' && currentOpponentResult === 'win')
@@ -414,11 +461,31 @@ const MatchPage = () => {
                     // Results match - finalize and calculate ELO
                     newStatus = 'completed';
                     
-                    // Determine winner and loser
+                    // Determine winner and loser using match data directly
                     const iAmWinner = result === 'win';
-                    const winnerId = iAmWinner ? userProfile.id : opponent?.id;
+                    // Get IDs directly from match to avoid undefined issues
+                    const winnerId = iAmWinner ? match.player1_id : match.player2_id;
+                    const loserId = iAmWinner ? match.player2_id : match.player1_id;
                     const winnerElo = iAmWinner ? match.player1_elo : match.player2_elo;
                     const loserElo = iAmWinner ? match.player2_elo : match.player1_elo;
+                    
+                    console.log('Finalizing match:', {
+                        iAmWinner,
+                        winnerId,
+                        loserId,
+                        winnerElo,
+                        loserElo
+                    });
+                    
+                    if (!winnerId || !loserId) {
+                        console.error('Missing winner or loser ID:', { winnerId, loserId });
+                        toast({
+                            title: "Error",
+                            description: "No se pudieron identificar los jugadores correctamente.",
+                            variant: "destructive"
+                        });
+                        return;
+                    }
                     
                     // Get current profiles with all stats
                     const { data: winnerProfileData, error: winnerProfileError } = await supabase
@@ -427,7 +494,6 @@ const MatchPage = () => {
                         .eq('id', winnerId)
                         .single();
                     
-                    const loserId = iAmWinner ? opponent?.id : userProfile.id;
                     const { data: loserProfileData, error: loserProfileError } = await supabase
                         .from('profiles')
                         .select('current_streak, elo, wins, games_played')
@@ -489,6 +555,13 @@ const MatchPage = () => {
                     }
                     
                     // Update loser profile
+                    console.log('Updating loser profile:', {
+                        loserId,
+                        currentGames: loserCurrentGames,
+                        newGames: loserCurrentGames + 1,
+                        newElo: eloResult.newLoserElo
+                    });
+                    
                     const { error: loserUpdateError } = await supabase
                         .from('profiles')
                         .update({
@@ -501,6 +574,14 @@ const MatchPage = () => {
                     
                     if (loserUpdateError) {
                         console.error('Error updating loser profile:', loserUpdateError);
+                        console.error('Loser update error details:', JSON.stringify(loserUpdateError, null, 2));
+                        toast({
+                            title: "Error",
+                            description: `Error al actualizar perfil del perdedor: ${loserUpdateError.message}`,
+                            variant: "destructive"
+                        });
+                    } else {
+                        console.log('Loser profile updated successfully');
                     }
                     
                     // Show appropriate toast

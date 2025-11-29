@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
@@ -49,6 +49,39 @@ const Dashboard = () => {
   const [loadingMatches, setLoadingMatches] = useState(true);
   const navigate = useNavigate();
 
+  const fetchMatchHistory = useCallback(async (profileId: string) => {
+    setLoadingMatches(true);
+    try {
+      const { data, error } = await supabase
+        .from("matches")
+        .select(`
+          id,
+          created_at,
+          status,
+          winner_id,
+          player1_id,
+          player2_id,
+          player1_elo,
+          player2_elo,
+          player1_profile:profiles!matches_player1_id_fkey(id, nickname, avatar_url),
+          player2_profile:profiles!matches_player2_id_fkey(id, nickname, avatar_url)
+        `)
+        .or(`player1_id.eq.${profileId},player2_id.eq.${profileId}`)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (error) {
+        console.error("Error fetching match history:", error);
+      } else if (data) {
+        setMatchHistory(data as unknown as MatchHistory[]);
+      }
+    } catch (err) {
+      console.error("Error:", err);
+    }
+    setLoadingMatches(false);
+  }, []);
+
   useEffect(() => {
     const fetchProfile = async (userId: string) => {
       const { data, error } = await supabase
@@ -63,39 +96,6 @@ const Dashboard = () => {
         fetchMatchHistory(data.id);
       }
       setLoading(false);
-    };
-
-    const fetchMatchHistory = async (profileId: string) => {
-      setLoadingMatches(true);
-      try {
-        const { data, error } = await supabase
-          .from("matches")
-          .select(`
-            id,
-            created_at,
-            status,
-            winner_id,
-            player1_id,
-            player2_id,
-            player1_elo,
-            player2_elo,
-            player1_profile:profiles!matches_player1_id_fkey(id, nickname, avatar_url),
-            player2_profile:profiles!matches_player2_id_fkey(id, nickname, avatar_url)
-          `)
-          .or(`player1_id.eq.${profileId},player2_id.eq.${profileId}`)
-          .eq("status", "completed")
-          .order("created_at", { ascending: false })
-          .limit(3);
-
-        if (error) {
-          console.error("Error fetching match history:", error);
-        } else if (data) {
-          setMatchHistory(data as unknown as MatchHistory[]);
-        }
-      } catch (err) {
-        console.error("Error:", err);
-      }
-      setLoadingMatches(false);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -119,7 +119,7 @@ const Dashboard = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, fetchMatchHistory]);
 
   // Subscribe to profile changes for real-time updates
   useEffect(() => {
@@ -143,9 +143,16 @@ const Dashboard = () => {
               .select('*')
               .eq('user_id', user.id)
               .single()
-              .then(({ data }) => {
-                if (data) {
+              .then(({ data, error }) => {
+                if (error) {
+                  console.error('Error refreshing profile:', error);
+                } else if (data) {
+                  console.log('Profile updated, refreshing data:', data);
                   setProfile(data);
+                  // Also refresh match history
+                  if (data.id) {
+                    fetchMatchHistory(data.id);
+                  }
                 }
               });
           }
@@ -156,7 +163,7 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(profileChannel);
     };
-  }, [profile?.id, user]);
+  }, [profile?.id, user, fetchMatchHistory]);
 
   if (!user || loading || !profile) return null;
 

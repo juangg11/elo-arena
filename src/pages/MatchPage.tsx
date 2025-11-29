@@ -310,6 +310,26 @@ const MatchPage = () => {
     const handleResultSelection = async (result: 'win' | 'lose') => {
         if (!matchId || !userProfile || !match) return;
 
+        // Check if match is already completed or reported
+        if (match.status === 'completed' || match.status === 'reported') {
+            const opponentResult = isPlayer1 ? match.result_b : match.result_a;
+            if (opponentResult === 'win' && result === 'win') {
+                toast({
+                    title: "Conflicto de resultados",
+                    description: "El otro jugador ya declaró victoria. Si realmente ganaste, por favor reporta el partido con evidencia.",
+                    variant: "destructive"
+                });
+                setIsReportOpen(true);
+            } else {
+                toast({
+                    title: "Partida finalizada",
+                    description: "Esta partida ya ha sido finalizada o reportada.",
+                    variant: "destructive"
+                });
+            }
+            return;
+        }
+
         // Check if timeout expired and user hasn't submitted yet
         if (timeoutExpired && !myResultInMatch) {
             toast({ 
@@ -341,7 +361,28 @@ const MatchPage = () => {
                 .update(updatePayload)
                 .eq('id', matchId);
 
-            if (error) throw error;
+            if (error) {
+                // Check if error is because match is already completed/reported
+                if (error.message.includes('completed') || error.message.includes('reported')) {
+                    const opponentResult = isPlayer1 ? match.result_b : match.result_a;
+                    if (opponentResult === 'win' && result === 'win') {
+                        toast({
+                            title: "Conflicto de resultados",
+                            description: "El otro jugador ya declaró victoria. Si realmente ganaste, por favor reporta el partido con evidencia.",
+                            variant: "destructive"
+                        });
+                        setIsReportOpen(true);
+                    } else {
+                        toast({
+                            title: "No se puede guardar",
+                            description: "El partido ya ha sido finalizado o reportado.",
+                            variant: "destructive"
+                        });
+                    }
+                    return;
+                }
+                throw error;
+            }
 
             toast({ title: "Resultado guardado", description: `Has marcado ${result === 'win' ? 'victoria' : 'derrota'}.` });
 
@@ -490,90 +531,140 @@ const MatchPage = () => {
                         return;
                     }
                     
-                    // Get current profiles with all stats
-                    const { data: winnerProfileData, error: winnerProfileError } = await supabase
-                        .from('profiles')
-                        .select('current_streak, elo, wins, games_played')
-                        .eq('id', winnerId)
-                        .single();
+                    // Get current profiles with all stats - fetch both in parallel
+                    const [winnerProfileResult, loserProfileResult] = await Promise.all([
+                        supabase
+                            .from('profiles')
+                            .select('current_streak, elo, wins, games_played')
+                            .eq('id', winnerId)
+                            .single(),
+                        supabase
+                            .from('profiles')
+                            .select('current_streak, elo, wins, games_played')
+                            .eq('id', loserId)
+                            .single()
+                    ]);
                     
-                    const { data: loserProfileData, error: loserProfileError } = await supabase
-                        .from('profiles')
-                        .select('current_streak, elo, wins, games_played')
-                        .eq('id', loserId)
-                        .single();
+                    const { data: winnerProfileData, error: winnerProfileError } = winnerProfileResult;
+                    const { data: loserProfileData, error: loserProfileError } = loserProfileResult;
                     
                     if (winnerProfileError) {
                         console.error('Error fetching winner profile:', winnerProfileError);
-                    }
-                    if (loserProfileError) {
-                        console.error('Error fetching loser profile:', loserProfileError);
+                        toast({
+                            title: "Error",
+                            description: "No se pudo obtener el perfil del ganador. Por favor, recarga la página.",
+                            variant: "destructive"
+                        });
+                        return;
                     }
                     
-                    const winnerStreak = winnerProfileData?.current_streak || 0;
-                    const loserStreak = loserProfileData?.current_streak || 0;
+                    if (loserProfileError) {
+                        console.error('Error fetching loser profile:', loserProfileError);
+                        toast({
+                            title: "Error",
+                            description: "No se pudo obtener el perfil del perdedor. Por favor, recarga la página.",
+                            variant: "destructive"
+                        });
+                        return;
+                    }
+                    
+                    // Ensure we have valid data
+                    if (!winnerProfileData || !loserProfileData) {
+                        console.error('Missing profile data:', { winnerProfileData, loserProfileData });
+                        toast({
+                            title: "Error",
+                            description: "No se pudieron obtener los datos de los perfiles.",
+                            variant: "destructive"
+                        });
+                        return;
+                    }
+                    
+                    const winnerStreak = Number(winnerProfileData.current_streak) || 0;
+                    const loserStreak = Number(loserProfileData.current_streak) || 0;
+                    const winnerCurrentElo = Number(winnerProfileData.elo) || winnerElo || 600;
+                    const loserCurrentElo = Number(loserProfileData.elo) || loserElo || 600;
                     
                     // Calculate ELO changes
                     const eloResult = calculateEloChange(
-                        winnerProfileData?.elo || winnerElo || 600,
-                        loserProfileData?.elo || loserElo || 600,
+                        winnerCurrentElo,
+                        loserCurrentElo,
                         winnerStreak,
                         loserStreak
                     );
                     
                     // Check for rank changes
                     const winnerRankChange = checkRankChange(
-                        winnerProfileData?.elo || winnerElo || 600,
+                        winnerCurrentElo,
                         eloResult.newWinnerElo
                     );
                     const loserRankChange = checkRankChange(
-                        loserProfileData?.elo || loserElo || 600,
+                        loserCurrentElo,
                         eloResult.newLoserElo
                     );
                     
                     // Get current stats (ensure we have numbers)
-                    const winnerCurrentWins = Number(winnerProfileData?.wins) || 0;
-                    const winnerCurrentGames = Number(winnerProfileData?.games_played) || 0;
-                    const loserCurrentGames = Number(loserProfileData?.games_played) || 0;
+                    const winnerCurrentWins = Number(winnerProfileData.wins) || 0;
+                    const winnerCurrentGames = Number(winnerProfileData.games_played) || 0;
+                    const loserCurrentGames = Number(loserProfileData.games_played) || 0;
                     
                     console.log('Updating profiles:', {
-                        winner: { id: winnerId, wins: winnerCurrentWins, games: winnerCurrentGames },
-                        loser: { id: loserId, games: loserCurrentGames }
+                        winner: { 
+                            id: winnerId, 
+                            currentElo: winnerCurrentElo,
+                            currentWins: winnerCurrentWins, 
+                            currentGames: winnerCurrentGames,
+                            newElo: eloResult.newWinnerElo,
+                            newWins: winnerCurrentWins + 1,
+                            newGames: winnerCurrentGames + 1
+                        },
+                        loser: { 
+                            id: loserId,
+                            currentElo: loserCurrentElo,
+                            currentGames: loserCurrentGames,
+                            newElo: eloResult.newLoserElo,
+                            newGames: loserCurrentGames + 1
+                        }
                     });
                     
-                    // Update winner profile
-                    const { error: winnerUpdateError } = await supabase
-                        .from('profiles')
-                        .update({
-                            elo: eloResult.newWinnerElo,
-                            rank: winnerRankChange.newRank,
-                            wins: winnerCurrentWins + 1,
-                            games_played: winnerCurrentGames + 1,
-                            current_streak: winnerStreak >= 0 ? winnerStreak + 1 : 1
-                        } as any)
-                        .eq('id', winnerId);
+                    // Update both profiles in parallel
+                    const [winnerUpdateResult, loserUpdateResult] = await Promise.all([
+                        supabase
+                            .from('profiles')
+                            .update({
+                                elo: eloResult.newWinnerElo,
+                                rank: winnerRankChange.newRank,
+                                wins: winnerCurrentWins + 1,
+                                games_played: winnerCurrentGames + 1,
+                                current_streak: winnerStreak >= 0 ? winnerStreak + 1 : 1
+                            } as any)
+                            .eq('id', winnerId)
+                            .select(),
+                        supabase
+                            .from('profiles')
+                            .update({
+                                elo: eloResult.newLoserElo,
+                                rank: loserRankChange.newRank,
+                                games_played: loserCurrentGames + 1,
+                                current_streak: loserStreak <= 0 ? loserStreak - 1 : -1
+                            } as any)
+                            .eq('id', loserId)
+                            .select()
+                    ]);
+                    
+                    const { error: winnerUpdateError, data: winnerUpdateData } = winnerUpdateResult;
+                    const { error: loserUpdateError, data: loserUpdateData } = loserUpdateResult;
                     
                     if (winnerUpdateError) {
                         console.error('Error updating winner profile:', winnerUpdateError);
+                        console.error('Winner update error details:', JSON.stringify(winnerUpdateError, null, 2));
+                        toast({
+                            title: "Error",
+                            description: `Error al actualizar perfil del ganador: ${winnerUpdateError.message}`,
+                            variant: "destructive"
+                        });
+                    } else {
+                        console.log('Winner profile updated successfully:', winnerUpdateData);
                     }
-                    
-                    // Update loser profile
-                    console.log('Updating loser profile:', {
-                        loserId,
-                        currentGames: loserCurrentGames,
-                        newGames: loserCurrentGames + 1,
-                        newElo: eloResult.newLoserElo
-                    });
-                    
-                    const { error: loserUpdateError } = await supabase
-                        .from('profiles')
-                        .update({
-                            elo: eloResult.newLoserElo,
-                            rank: loserRankChange.newRank,
-                            games_played: loserCurrentGames + 1,
-                            current_streak: loserStreak <= 0 ? loserStreak - 1 : -1
-                        } as any)
-                        .eq('id', loserId);
                     
                     if (loserUpdateError) {
                         console.error('Error updating loser profile:', loserUpdateError);
@@ -584,7 +675,13 @@ const MatchPage = () => {
                             variant: "destructive"
                         });
                     } else {
-                        console.log('Loser profile updated successfully');
+                        console.log('Loser profile updated successfully:', loserUpdateData);
+                    }
+                    
+                    // If either update failed, don't continue
+                    if (winnerUpdateError || loserUpdateError) {
+                        console.error('Profile updates failed, aborting match finalization');
+                        return;
                     }
                     
                     // Show appropriate toast
@@ -633,29 +730,87 @@ const MatchPage = () => {
         if (!matchId || !userProfile || !match) return;
 
         try {
-            let filePath: string | null = null;
+            // Get user_id (not profile_id) for the report
+            const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+            
+            if (userError || !currentUser) {
+                toast({
+                    title: "Error",
+                    description: "No se pudo identificar al usuario para crear el reporte.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            let evidenceUrl: string | null = null;
             if (reportFile) {
                 const ext = reportFile.name.split('.').pop();
-                filePath = `${matchId}/${userProfile.id}-${Date.now()}.${ext}`;
-                const { error: uploadError } = await supabase.storage.from('reports').upload(filePath, reportFile);
+                const fileName = `${matchId}/${currentUser.id}-${Date.now()}.${ext}`;
+                
+                console.log('Uploading file to storage:', fileName);
+                
+                // Upload file to storage
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('reports')
+                    .upload(fileName, reportFile, {
+                        cacheControl: '3600',
+                        upsert: false
+                    });
+                
                 if (uploadError) {
-                    toast({ title: "Error", description: "Error subiendo la captura.", variant: "destructive" });
+                    console.error('Upload error:', uploadError);
+                    toast({ 
+                        title: "Error", 
+                        description: `Error subiendo la captura: ${uploadError.message}`, 
+                        variant: "destructive" 
+                    });
                     return;
+                }
+
+                // Get public URL
+                const { data: urlData } = supabase.storage
+                    .from('reports')
+                    .getPublicUrl(fileName);
+                
+                if (urlData) {
+                    evidenceUrl = urlData.publicUrl;
+                    console.log('File uploaded successfully, URL:', evidenceUrl);
+                } else {
+                    console.error('Could not get public URL for uploaded file');
                 }
             }
 
-            const { error: reportError } = await supabase.from('reports').insert({
+            console.log('Creating report with data:', {
                 match_id: matchId,
-                reporter_id: userProfile.id,
-                description: reportText, // Changed from reason to description to match schema
-                evidence_url: filePath, // Changed from screenshot_url to evidence_url
+                reporter_id: currentUser.id,
+                description: reportText,
+                evidence_url: evidenceUrl,
                 status: 'pending'
-            } as any);
+            });
+
+            const { data: reportData, error: reportError } = await supabase
+                .from('reports')
+                .insert({
+                    match_id: matchId,
+                    reporter_id: currentUser.id, // Use user_id, not profile_id
+                    description: reportText,
+                    evidence_url: evidenceUrl,
+                    status: 'pending'
+                } as any)
+                .select();
 
             if (reportError) {
-                toast({ title: "Error", description: "Error al registrar el reporte.", variant: "destructive" });
+                console.error('Report error:', reportError);
+                console.error('Report error details:', JSON.stringify(reportError, null, 2));
+                toast({ 
+                    title: "Error", 
+                    description: `Error al registrar el reporte: ${reportError.message}`, 
+                    variant: "destructive" 
+                });
                 return;
             }
+
+            console.log('Report created successfully:', reportData);
 
             if (match.status === 'pending') {
                 await supabase.from('matches').update({ status: 'reported' }).eq('id', matchId);
@@ -669,7 +824,7 @@ const MatchPage = () => {
             // Redirect to index after reporting
             navigate("/");
         } catch (err) {
-            console.error("handleReport", err);
+            console.error("handleReport error:", err);
             toast({ title: "Error", description: "Error enviando reporte.", variant: "destructive" });
         }
     };

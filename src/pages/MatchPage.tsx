@@ -216,17 +216,23 @@ const MatchPage = () => {
                     // payload.new es el nuevo message row pero no incluye profiles
                     const newMsg = payload.new as any;
                     
-                    // Evita duplicados
+                    // Buscar el perfil del sender
+                    const { data: senderData } = await supabase
+                        .from('profiles')
+                        .select('id, nickname, avatar_url')
+                        .eq('id', newMsg.sender_id)
+                        .single();
+                    
+                    const senderProfile = senderData || { 
+                        id: newMsg.sender_id, 
+                        nickname: 'Usuario', 
+                        avatar_url: null 
+                    };
+                    
+                    // Evita duplicados y agrega el mensaje
                     setMessages((prev) => {
                         const exists = prev.some(m => String(m.id) === String(newMsg.id));
                         if (exists) return prev;
-                        
-                        // Construir el mensaje con datos del perfil
-                        // Si es mi mensaje, uso mi perfil. Si es del oponente, uso el suyo.
-                        const isMyMessage = newMsg.sender_id === userProfile?.id;
-                        const senderProfile = isMyMessage 
-                            ? { id: userProfile?.id || '', nickname: userProfile?.nickname || '', avatar_url: userProfile?.avatar_url || null }
-                            : { id: opponent?.id || '', nickname: opponent?.nickname || '', avatar_url: opponent?.avatar_url || null };
                         
                         const messageWithProfile: ChatMessage = {
                             ...newMsg,
@@ -380,17 +386,17 @@ const MatchPage = () => {
                     const winnerElo = iAmWinner ? match.player1_elo : match.player2_elo;
                     const loserElo = iAmWinner ? match.player2_elo : match.player1_elo;
                     
-                    // Get current streaks from profiles
+                    // Get current profiles with all stats
                     const { data: winnerProfile } = await supabase
                         .from('profiles')
-                        .select('current_streak, elo')
+                        .select('current_streak, elo, wins, games_played')
                         .eq('id', winnerId)
                         .single();
                     
                     const loserId = iAmWinner ? opponent?.id : userProfile.id;
                     const { data: loserProfile } = await supabase
                         .from('profiles')
-                        .select('current_streak, elo')
+                        .select('current_streak, elo, wins, games_played')
                         .eq('id', loserId)
                         .single();
                     
@@ -416,24 +422,29 @@ const MatchPage = () => {
                     );
                     
                     // Update winner profile
+                    const winnerCurrentWins = (winnerProfile as any)?.wins || 0;
+                    const winnerCurrentGames = (winnerProfile as any)?.games_played || 0;
+                    
                     await supabase
                         .from('profiles')
                         .update({
                             elo: eloResult.newWinnerElo,
                             rank: winnerRankChange.newRank,
-                            wins: (winnerProfile as any)?.wins ? (winnerProfile as any).wins + 1 : 1,
-                            games_played: (winnerProfile as any)?.games_played ? (winnerProfile as any).games_played + 1 : 1,
+                            wins: winnerCurrentWins + 1,
+                            games_played: winnerCurrentGames + 1,
                             current_streak: winnerStreak >= 0 ? winnerStreak + 1 : 1
                         } as any)
                         .eq('id', winnerId);
                     
                     // Update loser profile
+                    const loserCurrentGames = (loserProfile as any)?.games_played || 0;
+                    
                     await supabase
                         .from('profiles')
                         .update({
                             elo: eloResult.newLoserElo,
                             rank: loserRankChange.newRank,
-                            games_played: (loserProfile as any)?.games_played ? (loserProfile as any).games_played + 1 : 1,
+                            games_played: loserCurrentGames + 1,
                             current_streak: loserStreak <= 0 ? loserStreak - 1 : -1
                         } as any)
                         .eq('id', loserId);

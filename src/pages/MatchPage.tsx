@@ -212,13 +212,28 @@ const MatchPage = () => {
             .on(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
-                (payload) => {
-                    // payload.new es el nuevo message row
+                async (payload) => {
+                    // payload.new es el nuevo message row pero no incluye profiles
+                    const newMsg = payload.new as any;
+                    
+                    // Evita duplicados
                     setMessages((prev) => {
-                        // Evita duplicados por seguridad: si ya existe id, no añadir
-                        const exists = prev.some(m => String(m.id) === String(payload.new.id));
+                        const exists = prev.some(m => String(m.id) === String(newMsg.id));
                         if (exists) return prev;
-                        return [...prev, payload.new as ChatMessage];
+                        
+                        // Construir el mensaje con datos del perfil
+                        // Si es mi mensaje, uso mi perfil. Si es del oponente, uso el suyo.
+                        const isMyMessage = newMsg.sender_id === userProfile?.id;
+                        const senderProfile = isMyMessage 
+                            ? { id: userProfile?.id || '', nickname: userProfile?.nickname || '', avatar_url: userProfile?.avatar_url || null }
+                            : { id: opponent?.id || '', nickname: opponent?.nickname || '', avatar_url: opponent?.avatar_url || null };
+                        
+                        const messageWithProfile: ChatMessage = {
+                            ...newMsg,
+                            profiles: senderProfile
+                        };
+                        
+                        return [...prev, messageWithProfile];
                     });
                 }
             );

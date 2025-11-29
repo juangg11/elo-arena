@@ -1,9 +1,13 @@
-#!/usr/bin/env node
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import 'dotenv/config';
+
+// ES module compatibility
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ============================================
 // INTERFACES
@@ -74,7 +78,7 @@ class MatchmakingBot {
 
         // Initialize Supabase client
         const supabaseUrl = process.env.VITE_SUPABASE_URL;
-        const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+        const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
         if (!supabaseUrl || !supabaseKey) {
             throw new Error('Missing Supabase credentials in .env file');
@@ -114,6 +118,16 @@ class MatchmakingBot {
             }
 
             console.log(`[${this.config.name}] User created successfully`);
+
+            // Sign in immediately after signup
+            const { error: postSignUpError } = await this.supabase.auth.signInWithPassword({
+                email: this.config.email,
+                password: this.config.password,
+            });
+
+            if (postSignUpError) {
+                throw new Error(`Failed to sign in after signup: ${postSignUpError.message}`);
+            }
         } else {
             console.log(`[${this.config.name}] Signed in successfully`);
         }
@@ -245,6 +259,7 @@ class MatchmakingBot {
                     if (entry.status === 'matched' && entry.match_id) {
                         console.log(`[${this.config.name}] 🎮 MATCH FOUND! Match ID: ${entry.match_id}`);
                         this.currentMatchId = entry.match_id;
+                        this.stopSearching();
                         await this.handleMatch(entry.match_id);
                     }
                 }
@@ -252,6 +267,167 @@ class MatchmakingBot {
             .subscribe();
 
         console.log(`[${this.config.name}] Subscribed to queue updates`);
+
+        // Start actively searching for opponents
+        this.startSearching();
+    }
+
+    private searchInterval: NodeJS.Timeout | null = null;
+    private searchStartTime: number = 0;
+    private readonly ELO_RANGE_INITIAL = 50;
+    private readonly REGION_EXPAND_TIME = 180; // 3 minutes
+    private readonly FULL_EXPAND_TIME = 360; // 6 minutes
+
+    startSearching(): void {
+        this.searchStartTime = Date.now();
+        console.log(`[${this.config.name}] Starting active opponent search...`);
+
+        // Search immediately
+        this.findMatch();
+
+        // Then search every 2 seconds
+        this.searchInterval = setInterval(() => {
+            this.findMatch();
+        }, 2000);
+    }
+
+    stopSearching(): void {
+        if (this.searchInterval) {
+            clearInterval(this.searchInterval);
+            this.searchInterval = null;
+        }
+    }
+
+    async findMatch(): Promise<void> {
+        if (!this.profile || !this.queueId || !this.isRunning) return;
+
+        try {
+            const searchTimeSeconds = Math.floor((Date.now() - this.searchStartTime) / 1000);
+            let eloRange = this.ELO_RANGE_INITIAL;
+
+            // Increase ELO range over time
+            eloRange += Math.floor(searchTimeSeconds / 60) * 25;
+
+            // Determine search phase
+            const searchRegionOnly = searchTimeSeconds < this.REGION_EXPAND_TIME && this.config.region !== 'global';
+            const searchAny = searchTimeSeconds >= this.FULL_EXPAND_TIME;
+
+            // Build query
+            let query = this.supabase
+                .from('matchmaking_queue')
+                .select('*')
+                .eq('status', 'searching')
+                .neq('id', this.queueId)
+                .neq('profile_id', this.profile.id); // Exclude own profile
+
+            // Apply ELO filter unless we're in "any" phase
+            if (!searchAny) {
+                query = query
+                    .gte('elo', this.config.elo - eloRange)
+                    .lte('elo', this.config.elo + eloRange);
+            }
+
+            // Apply region filter in first phase
+            if (searchRegionOnly) {
+                query = query.eq('region', this.config.region);
+            }
+
+            const { data: potentialMatches, error } = await query
+                .order('created_at', { ascending: true })
+                .limit(10);
+
+            if (error) {
+                console.error(`[${this.config.name}] Error searching for matches:`, error);
+                return;
+            }
+
+            if (potentialMatches && potentialMatches.length > 0) {
+                const matchesTyped = potentialMatches as unknown as MatchQueueEntry[];
+
+                // Find the best match based on priority:
+                // 1. Same region + closest ELO
+                // 2. Closest ELO (any region)
+                let bestMatch: MatchQueueEntry = matchesTyped[0];
+                let bestScore = this.calculateMatchScore(matchesTyped[0]);
+
+                for (const match of matchesTyped) {
+                    const score = this.calculateMatchScore(match);
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestMatch = match;
+                    }
+                }
+
+                console.log(`[${this.config.name}] Found potential match: ${bestMatch.profile_id} (ELO: ${bestMatch.elo}, Region: ${bestMatch.region})`);
+                await this.createMatch(bestMatch);
+            }
+        } catch (error) {
+            console.error(`[${this.config.name}] Error in findMatch:`, error);
+        }
+    }
+
+    calculateMatchScore(opponent: MatchQueueEntry): number {
+        const eloDiff = Math.abs(this.config.elo - opponent.elo);
+        const sameRegion = opponent.region === this.config.region;
+
+        // Lower score = better match
+        // Same region gives a 100 point bonus (subtracted from score)
+        return eloDiff - (sameRegion ? 100 : 0);
+    }
+
+    async createMatch(opponent: MatchQueueEntry): Promise<void> {
+        if (!this.profile || !this.queueId) return;
+
+        try {
+            // Create the match
+            // Note: Using player1_id/player2_id and player1_elo/player2_elo to match actual DB schema
+            const { data: matchData, error: matchError } = await this.supabase
+                .from('matches')
+                .insert({
+                    player1_id: this.profile.id,
+                    player2_id: opponent.profile_id,
+                    player1_elo: this.config.elo,
+                    player2_elo: opponent.elo,
+                    status: 'pending'
+                })
+                .select('id')
+                .single();
+
+            if (matchError) {
+                console.error(`[${this.config.name}] Error creating match:`, matchError);
+                return;
+            }
+
+            const matchId = (matchData as { id: string }).id;
+            console.log(`[${this.config.name}] ✓ Match created: ${matchId}`);
+
+            // Update own queue entry
+            await this.supabase
+                .from('matchmaking_queue')
+                .update({
+                    status: 'matched',
+                    matched_with: opponent.id,
+                    match_id: matchId
+                })
+                .eq('id', this.queueId);
+
+            // Update opponent's queue entry
+            await this.supabase
+                .from('matchmaking_queue')
+                .update({
+                    status: 'matched',
+                    matched_with: this.queueId,
+                    match_id: matchId
+                })
+                .eq('id', opponent.id);
+
+            this.stopSearching();
+            this.currentMatchId = matchId;
+            await this.handleMatch(matchId);
+
+        } catch (error) {
+            console.error(`[${this.config.name}] Error in createMatch:`, error);
+        }
     }
 
     // ============================================
@@ -318,14 +494,35 @@ class MatchmakingBot {
                     table: 'messages',
                     filter: `match_id=eq.${matchId}`,
                 },
-                (payload: any) => {
+                async (payload: any) => {
                     const message = payload.new;
                     if (message.sender_id !== this.profile?.id) {
                         console.log(`[${this.config.name}] 💬 Received: "${message.content}"`);
+
+                        // Auto-respond with "hola"
+                        await this.sendMessage(matchId, "hola");
                     }
                 }
             )
             .subscribe();
+    }
+
+    async sendMessage(matchId: string, content: string): Promise<void> {
+        if (!this.profile) return;
+
+        const { error } = await this.supabase
+            .from('messages')
+            .insert({
+                match_id: matchId,
+                sender_id: this.profile.id,
+                content: content,
+            });
+
+        if (error) {
+            console.error(`[${this.config.name}] Failed to send message:`, error);
+        } else {
+            console.log(`[${this.config.name}] 💬 Sent: "${content}"`);
+        }
     }
 
     async sendChatMessages(matchId: string): Promise<void> {
@@ -381,8 +578,48 @@ class MatchmakingBot {
 
         if (error) {
             console.error(`[${this.config.name}] Failed to declare result:`, error);
-        } else {
-            console.log(`[${this.config.name}] ✓ Result declared: ${result}`);
+            return;
+        }
+
+        console.log(`[${this.config.name}] ✓ Result declared: ${result}`);
+
+        // Check if opponent has reported to finalize match
+        const { data: updatedMatch } = await this.supabase
+            .from('matches')
+            .select('*')
+            .eq('id', matchId)
+            .single();
+
+        if (!updatedMatch) return;
+
+        const opponentResult = isPlayer1 ? updatedMatch.result_b : updatedMatch.result_a;
+
+        if (opponentResult) {
+            console.log(`[${this.config.name}] Opponent has already reported: ${opponentResult}`);
+            let newStatus = 'reported';
+            let winnerId = null;
+
+            if (result === 'win' && opponentResult === 'lose') {
+                newStatus = 'completed';
+                winnerId = this.profile.id;
+            } else if (result === 'lose' && opponentResult === 'win') {
+                newStatus = 'completed';
+                winnerId = isPlayer1 ? match.player2_id : match.player1_id;
+            }
+
+            const updatePayload: any = { status: newStatus };
+            if (winnerId) updatePayload.winner_id = winnerId;
+
+            const { error: finalError } = await this.supabase
+                .from('matches')
+                .update(updatePayload)
+                .eq('id', matchId);
+
+            if (finalError) {
+                console.error(`[${this.config.name}] Failed to finalize match:`, finalError);
+            } else {
+                console.log(`[${this.config.name}] Match finalized: ${newStatus}`);
+            }
         }
     }
 
@@ -392,6 +629,8 @@ class MatchmakingBot {
 
     async cleanup(): Promise<void> {
         console.log(`[${this.config.name}] Cleaning up...`);
+
+        this.stopSearching();
 
         if (this.queueId) {
             await this.supabase
@@ -495,7 +734,7 @@ async function main() {
         // Create bot from CLI arguments
         const config: BotConfig = {
             name: name,
-            email: `bot-${Date.now()}@test.com`,
+            email: 'bot-eu-low@example.com',
             password: 'TestBot123!',
             region: region,
             elo: parseInt(elo),
@@ -543,7 +782,8 @@ async function main() {
 }
 
 // Run if executed directly
-if (require.main === module) {
+const isMainModule = process.argv[1] === __filename;
+if (isMainModule) {
     main();
 }
 

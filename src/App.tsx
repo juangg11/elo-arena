@@ -9,8 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import Ladder from "./pages/Ladder";
 import Matchmaking from "./pages/Matchmaking";
 import NotFound from "./pages/NotFound";
-import CreateProfile from "./pages/CreateProfile";
 import Profile from "./pages/Profile";
+import MatchPage from "./pages/MatchPage";
+import MatchHistory from "./pages/MatchHistory";
 
 const queryClient = new QueryClient();
 
@@ -26,8 +27,9 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/matchmaking" element={<Matchmaking />} />
           <Route path="/ladder" element={<Ladder />} />
-          <Route path="/create-profile" element={<CreateProfile />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/match/:id" element={<MatchPage />} />
+          <Route path="/history" element={<MatchHistory />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

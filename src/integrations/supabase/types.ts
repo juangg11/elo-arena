@@ -123,6 +123,73 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          id: string
+          match_id: string
+          sender_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          match_id: string
+          sender_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          match_id?: string
+          sender_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          id: string
+          match_id: string
+          reporter_id: string
+          description: string | null
+          evidence_url: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          match_id: string
+          reporter_id: string
+          description?: string | null
+          evidence_url?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          match_id?: string
+          reporter_id?: string
+          description?: string | null
+          evidence_url?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_match_id_fkey"
+            columns: ["match_id"]
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

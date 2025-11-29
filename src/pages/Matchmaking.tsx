@@ -154,8 +154,12 @@ const Matchmaking = () => {
     };
 
     // Función de búsqueda de oponente
-    const findMatch = async () => {
-        if (!profile || !queueId) return;
+    const findMatch = async (currentQueueId?: string) => {
+        const activeQueueId = currentQueueId || queueIdRef.current;
+        if (!profile || !activeQueueId) {
+            console.log('findMatch skipped - no profile or queueId', { profile: !!profile, activeQueueId });
+            return;
+        }
 
         try {
             const currentTime = searchTime;
@@ -164,12 +168,22 @@ const Matchmaking = () => {
             // Aumentar rango de ELO con el tiempo
             eloRange += Math.floor(currentTime / 60) * 25;
 
+            console.log('Searching for opponents...', { 
+                myQueueId: activeQueueId, 
+                myProfileId: profile.id,
+                elo: profile.elo, 
+                eloRange, 
+                region: profile.region,
+                searchTime: currentTime 
+            });
+
             // Usar 'as any' para ignorar el tipado estricto de Supabase si no se genera types.ts
             let query = supabase
                 .from('matchmaking_queue' as any)
                 .select('*')
                 .eq('status', 'searching')
-                .neq('id', queueId)
+                .neq('id', activeQueueId)
+                .neq('profile_id', profile.id) // Excluir mi propio perfil
                 .gte('elo', profile.elo - eloRange)
                 .lte('elo', profile.elo + eloRange);
 
@@ -186,6 +200,8 @@ const Matchmaking = () => {
                 console.error('Error buscando matches:', error);
                 return;
             }
+
+            console.log('Potential matches found:', potentialMatches?.length || 0, potentialMatches);
 
             if (potentialMatches && potentialMatches.length > 0) {
                 // Castear a unknown primero y luego a MatchQueueEntry[] para mayor seguridad.
@@ -206,7 +222,8 @@ const Matchmaking = () => {
                     }
                 }
 
-                await createMatch(bestMatch);
+                console.log('Best match selected:', bestMatch);
+                await createMatch(bestMatch, activeQueueId);
             }
         } catch (error) {
             console.error('Error en findMatch:', error);
@@ -214,8 +231,11 @@ const Matchmaking = () => {
     };
 
     // Función para crear la partida
-    const createMatch = async (opponent: MatchQueueEntry) => {
-        if (!profile || !queueId) return;
+    const createMatch = async (opponent: MatchQueueEntry, currentQueueId?: string) => {
+        const activeQueueId = currentQueueId || queueIdRef.current;
+        if (!profile || !activeQueueId) return;
+
+        console.log('Creating match with opponent:', opponent);
 
         try {
             const { data: matchData, error: matchError } = await supabase
@@ -223,14 +243,19 @@ const Matchmaking = () => {
                 .insert({
                     player1_id: profile.id,
                     player2_id: opponent.profile_id,
-                    elo_before_a: profile.elo,
-                    elo_before_b: opponent.elo,
+                    player1_elo: profile.elo,
+                    player2_elo: opponent.elo,
                     status: 'pending'
                 } as any) // Añadimos 'as any' para evitar conflictos de tipado de Supabase
                 .select('id')
                 .single();
 
-            if (matchError) throw matchError;
+            if (matchError) {
+                console.error('Error creating match:', matchError);
+                throw matchError;
+            }
+            
+            console.log('Match created:', matchData);
 
             const matchResult = matchData as MatchInsertResult;
             const matchId = matchResult.id;
@@ -243,14 +268,14 @@ const Matchmaking = () => {
                     matched_with: opponent.id,
                     match_id: matchId
                 })
-                .eq('id', queueId);
+                .eq('id', activeQueueId);
 
             // Actualizar la entrada del oponente en la cola
             await supabase
                 .from('matchmaking_queue' as any)
                 .update({
                     status: 'matched',
-                    matched_with: queueId,
+                    matched_with: activeQueueId,
                     match_id: matchId
                 })
                 .eq('id', opponent.id);
@@ -289,6 +314,38 @@ const Matchmaking = () => {
         setQueueId(null);
     };
 
+    // Polling fallback to check if someone else matched us
+    const checkIfMatched = async (currentQueueId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('matchmaking_queue' as any)
+                .select('*')
+                .eq('id', currentQueueId)
+                .single();
+
+            if (error) {
+                console.log('Queue entry not found, may have been deleted');
+                return;
+            }
+
+            const entry = data as unknown as MatchQueueEntry;
+            
+            if (entry.status === 'matched' && entry.match_id) {
+                console.log('Match found via polling! Navigating to:', entry.match_id);
+                cleanupSearch();
+                toast({
+                    title: "¡Match encontrado!",
+                    description: "Redirigiendo a la sala de match...",
+                });
+                setTimeout(() => {
+                    navigate(`/match/${entry.match_id}`);
+                }, 500);
+            }
+        } catch (err) {
+            console.error('Error checking if matched:', err);
+        }
+    };
+
     const handleStartSearch = async () => {
         if (!profile || !user) return;
 
@@ -321,9 +378,12 @@ const Matchmaking = () => {
                 description: `Buscando oponente en ${getRegionName(profile.region)}...`,
             });
 
-            findMatch();
+            // Buscar inmediatamente pasando el queueId directamente
+            findMatch(queueEntry.id);
             searchIntervalRef.current = setInterval(() => {
                 findMatch();
+                // Also check if we've been matched by someone else (polling fallback)
+                checkIfMatched(queueEntry.id);
             }, 2000);
 
             const channel = supabase
@@ -337,9 +397,11 @@ const Matchmaking = () => {
                         filter: `id=eq.${queueEntry.id}`
                     },
                     (payload: any) => {
+                        console.log('Queue update received:', payload);
                         const newEntry = payload.new as MatchQueueEntry;
 
                         if (newEntry.status === 'matched' && newEntry.match_id) {
+                            console.log('Match found via realtime! Navigating to:', newEntry.match_id);
                             cleanupSearch();
                             toast({
                                 title: "¡Match encontrado!",
@@ -351,7 +413,9 @@ const Matchmaking = () => {
                         }
                     }
                 )
-                .subscribe();
+                .subscribe((status) => {
+                    console.log('Subscription status:', status);
+                });
 
             subscriptionRef.current = channel;
 

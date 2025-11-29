@@ -465,12 +465,12 @@ const MatchPage = () => {
                             const reportDescription = `Reporte automático: Conflicto de resultados. ${conflictType}.`;
                             
                             const { data: reportData, error: reportError } = await supabase
-                                .from('reports')
-                                .insert({
-                                    match_id: matchId,
+                        .from('reports')
+                        .insert({
+                            match_id: matchId,
                                     reporter_id: currentUser.id, // Use user_id, not profile_id
                                     description: reportDescription,
-                                    status: 'pending'
+                            status: 'pending'
                                 } as any)
                                 .select();
 
@@ -505,20 +505,33 @@ const MatchPage = () => {
                     // Results match - finalize and calculate ELO
                     newStatus = 'completed';
                     
-                    // Determine winner and loser using match data directly
+                    // Determine winner and loser based on the results declared
                     const iAmWinner = result === 'win';
-                    // Get IDs directly from match to avoid undefined issues
-                    const winnerId = iAmWinner ? match.player1_id : match.player2_id;
-                    const loserId = iAmWinner ? match.player2_id : match.player1_id;
-                    const winnerElo = iAmWinner ? match.player1_elo : match.player2_elo;
-                    const loserElo = iAmWinner ? match.player2_elo : match.player1_elo;
+                    // Use the actual user IDs from the match
+                    const myId = userProfile.id;
+                    const opponentId = isPlayer1 ? match.player2_id : match.player1_id;
+                    
+                    // Winner is the one who declared 'win', loser is the one who declared 'lose'
+                    const winnerId = iAmWinner ? myId : opponentId;
+                    const loserId = iAmWinner ? opponentId : myId;
+                    
+                    // Get ELOs based on who is player1 and player2
+                    const winnerIsPlayer1 = winnerId === match.player1_id;
+                    const loserIsPlayer1 = loserId === match.player1_id;
+                    const winnerElo = winnerIsPlayer1 ? match.player1_elo : match.player2_elo;
+                    const loserElo = loserIsPlayer1 ? match.player1_elo : match.player2_elo;
                     
                     console.log('Finalizing match:', {
+                        myId,
+                        opponentId,
                         iAmWinner,
                         winnerId,
                         loserId,
                         winnerElo,
-                        loserElo
+                        loserElo,
+                        isPlayer1,
+                        player1_id: match.player1_id,
+                        player2_id: match.player2_id
                     });
                     
                     if (!winnerId || !loserId) {
@@ -678,10 +691,15 @@ const MatchPage = () => {
                         console.log('Loser profile updated successfully:', loserUpdateData);
                     }
                     
-                    // If either update failed, don't continue
+                    // Log results but continue even if one fails (we'll try to update status anyway)
                     if (winnerUpdateError || loserUpdateError) {
-                        console.error('Profile updates failed, aborting match finalization');
-                        return;
+                        console.error('Some profile updates failed:', {
+                            winnerError: winnerUpdateError,
+                            loserError: loserUpdateError
+                        });
+                        // Don't return - continue to update match status
+                    } else {
+                        console.log('Both profiles updated successfully');
                     }
                     
                     // Show appropriate toast

@@ -182,6 +182,7 @@ const Matchmaking = () => {
                 .from('matchmaking_queue' as any)
                 .select('*')
                 .eq('status', 'searching')
+                .is('match_id', null) // Asegurar que no tenga match_id asignado
                 .neq('id', activeQueueId)
                 .neq('profile_id', profile.id) // Excluir mi propio perfil
                 .gte('elo', profile.elo - eloRange)
@@ -238,6 +239,52 @@ const Matchmaking = () => {
         console.log('Creating match with opponent:', opponent);
 
         try {
+            // Verificar que el oponente siga disponible (no esté ya en un match)
+            const { data: opponentCheck, error: checkError } = await supabase
+                .from('matchmaking_queue' as any)
+                .select('status, match_id')
+                .eq('id', opponent.id)
+                .single();
+
+            if (checkError || !opponentCheck) {
+                console.error('Error checking opponent status:', checkError);
+                toast({
+                    title: "Error",
+                    description: "El oponente ya no está disponible.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            // Si el oponente ya está en un match o no está buscando, cancelar
+            if (opponentCheck.status !== 'searching' || opponentCheck.match_id) {
+                console.log('Opponent already matched:', opponentCheck);
+                toast({
+                    title: "Oponente no disponible",
+                    description: "El oponente ya encontró partida. Buscando otro...",
+                    variant: "destructive"
+                });
+                // Continuar buscando
+                return;
+            }
+
+            // Verificar que nosotros tampoco estemos ya en un match
+            const { data: myCheck, error: myCheckError } = await supabase
+                .from('matchmaking_queue' as any)
+                .select('status, match_id')
+                .eq('id', activeQueueId)
+                .single();
+
+            if (myCheckError || !myCheck) {
+                console.error('Error checking own status:', myCheckError);
+                return;
+            }
+
+            if (myCheck.status !== 'searching' || myCheck.match_id) {
+                console.log('Already matched:', myCheck);
+                return;
+            }
+
             const { data: matchData, error: matchError } = await supabase
                 .from('matches')
                 .insert({
@@ -260,25 +307,60 @@ const Matchmaking = () => {
             const matchResult = matchData as MatchInsertResult;
             const matchId = matchResult.id;
 
-            // Actualizar la entrada propia en la cola
-            await supabase
-                .from('matchmaking_queue' as any)
-                .update({
-                    status: 'matched',
-                    matched_with: opponent.id,
-                    match_id: matchId
-                })
-                .eq('id', activeQueueId);
+            // Actualizar ambas entradas en paralelo y verificar que se actualicen correctamente
+            const [myUpdateResult, opponentUpdateResult] = await Promise.all([
+                supabase
+                    .from('matchmaking_queue' as any)
+                    .update({
+                        status: 'matched',
+                        matched_with: opponent.id,
+                        match_id: matchId
+                    })
+                    .eq('id', activeQueueId)
+                    .eq('status', 'searching') // Solo actualizar si sigue buscando
+                    .is('match_id', null) // Solo si no tiene match_id
+                    .select(),
+                supabase
+                    .from('matchmaking_queue' as any)
+                    .update({
+                        status: 'matched',
+                        matched_with: activeQueueId,
+                        match_id: matchId
+                    })
+                    .eq('id', opponent.id)
+                    .eq('status', 'searching') // Solo actualizar si sigue buscando
+                    .is('match_id', null) // Solo si no tiene match_id
+                    .select()
+            ]);
 
-            // Actualizar la entrada del oponente en la cola
-            await supabase
-                .from('matchmaking_queue' as any)
-                .update({
-                    status: 'matched',
-                    matched_with: activeQueueId,
-                    match_id: matchId
-                })
-                .eq('id', opponent.id);
+            // Verificar que ambas actualizaciones fueron exitosas
+            if (!myUpdateResult.data || myUpdateResult.data.length === 0) {
+                console.error('Failed to update own queue entry - already matched?');
+                // Si no se pudo actualizar, eliminar el match creado
+                await supabase.from('matches').delete().eq('id', matchId);
+                toast({
+                    title: "Error",
+                    description: "No se pudo crear el match. Intenta de nuevo.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            if (!opponentUpdateResult.data || opponentUpdateResult.data.length === 0) {
+                console.error('Failed to update opponent queue entry - already matched?');
+                // Si no se pudo actualizar, eliminar el match creado y revertir nuestra actualización
+                await supabase.from('matches').delete().eq('id', matchId);
+                await supabase
+                    .from('matchmaking_queue' as any)
+                    .update({ status: 'searching', matched_with: null, match_id: null })
+                    .eq('id', activeQueueId);
+                toast({
+                    title: "Oponente no disponible",
+                    description: "El oponente ya encontró partida. Buscando otro...",
+                    variant: "destructive"
+                });
+                return;
+            }
 
             cleanupSearch();
 

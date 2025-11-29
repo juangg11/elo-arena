@@ -317,6 +317,7 @@ class MatchmakingBot {
                 .from('matchmaking_queue')
                 .select('*')
                 .eq('status', 'searching')
+                .is('match_id', null) // Ensure opponent doesn't have match_id assigned
                 .neq('id', this.queueId)
                 .neq('profile_id', this.profile.id); // Exclude own profile
 
@@ -379,6 +380,41 @@ class MatchmakingBot {
         if (!this.profile || !this.queueId) return;
 
         try {
+            // Verify opponent is still available
+            const { data: opponentCheck, error: checkError } = await this.supabase
+                .from('matchmaking_queue')
+                .select('status, match_id')
+                .eq('id', opponent.id)
+                .single();
+
+            if (checkError || !opponentCheck) {
+                console.error(`[${this.config.name}] Error checking opponent status:`, checkError);
+                return;
+            }
+
+            // If opponent is already matched, skip
+            if (opponentCheck.status !== 'searching' || opponentCheck.match_id) {
+                console.log(`[${this.config.name}] Opponent already matched, skipping`);
+                return;
+            }
+
+            // Verify we're still searching
+            const { data: myCheck, error: myCheckError } = await this.supabase
+                .from('matchmaking_queue')
+                .select('status, match_id')
+                .eq('id', this.queueId)
+                .single();
+
+            if (myCheckError || !myCheck) {
+                console.error(`[${this.config.name}] Error checking own status:`, myCheckError);
+                return;
+            }
+
+            if (myCheck.status !== 'searching' || myCheck.match_id) {
+                console.log(`[${this.config.name}] Already matched, stopping search`);
+                return;
+            }
+
             // Create the match
             // Note: Using player1_id/player2_id and player1_elo/player2_elo to match actual DB schema
             const { data: matchData, error: matchError } = await this.supabase
@@ -401,25 +437,48 @@ class MatchmakingBot {
             const matchId = (matchData as { id: string }).id;
             console.log(`[${this.config.name}] ✓ Match created: ${matchId}`);
 
-            // Update own queue entry
-            await this.supabase
-                .from('matchmaking_queue')
-                .update({
-                    status: 'matched',
-                    matched_with: opponent.id,
-                    match_id: matchId
-                })
-                .eq('id', this.queueId);
+            // Update both queue entries atomically
+            const [myUpdateResult, opponentUpdateResult] = await Promise.all([
+                this.supabase
+                    .from('matchmaking_queue')
+                    .update({
+                        status: 'matched',
+                        matched_with: opponent.id,
+                        match_id: matchId
+                    })
+                    .eq('id', this.queueId)
+                    .eq('status', 'searching')
+                    .is('match_id', null)
+                    .select(),
+                this.supabase
+                    .from('matchmaking_queue')
+                    .update({
+                        status: 'matched',
+                        matched_with: this.queueId,
+                        match_id: matchId
+                    })
+                    .eq('id', opponent.id)
+                    .eq('status', 'searching')
+                    .is('match_id', null)
+                    .select()
+            ]);
 
-            // Update opponent's queue entry
-            await this.supabase
-                .from('matchmaking_queue')
-                .update({
-                    status: 'matched',
-                    matched_with: this.queueId,
-                    match_id: matchId
-                })
-                .eq('id', opponent.id);
+            // Verify both updates succeeded
+            if (!myUpdateResult.data || myUpdateResult.data.length === 0) {
+                console.error(`[${this.config.name}] Failed to update own queue entry`);
+                await this.supabase.from('matches').delete().eq('id', matchId);
+                return;
+            }
+
+            if (!opponentUpdateResult.data || opponentUpdateResult.data.length === 0) {
+                console.error(`[${this.config.name}] Failed to update opponent queue entry - already matched`);
+                await this.supabase.from('matches').delete().eq('id', matchId);
+                await this.supabase
+                    .from('matchmaking_queue')
+                    .update({ status: 'searching', matched_with: null, match_id: null })
+                    .eq('id', this.queueId);
+                return;
+            }
 
             this.stopSearching();
             this.currentMatchId = matchId;

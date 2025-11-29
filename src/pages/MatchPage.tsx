@@ -464,14 +464,17 @@ const MatchPage = () => {
                                 : 'ambos jugadores declararon derrota';
                             const reportDescription = `Reporte automático: Conflicto de resultados. ${conflictType}.`;
                             
+                            // Use both 'reason' and 'description' to handle different schema versions
+                            const autoReportPayload: any = {
+                                match_id: matchId,
+                                reporter_id: currentUser.id, // Use user_id, not profile_id
+                                reason: reportDescription,
+                                description: reportDescription
+                            };
+                            
                             const { data: reportData, error: reportError } = await supabase
-                        .from('reports')
-                        .insert({
-                            match_id: matchId,
-                                    reporter_id: currentUser.id, // Use user_id, not profile_id
-                                    description: reportDescription,
-                            status: 'pending'
-                                } as any)
+                                .from('reports')
+                                .insert(autoReportPayload as any)
                                 .select();
 
                             if (reportError) {
@@ -480,6 +483,7 @@ const MatchPage = () => {
                                 console.error("Report insert payload:", {
                                     match_id: matchId,
                                     reporter_id: currentUser.id,
+                                    reason: reportDescription,
                                     description: reportDescription,
                                     status: 'pending'
                                 });
@@ -806,16 +810,20 @@ const MatchPage = () => {
                 status: 'pending'
             });
 
-            // Build report payload without status if column doesn't exist
+            // Build report payload - try both 'reason' and 'description' column names
+            // Some databases might have 'reason' instead of 'description'
             const reportPayload: any = {
                 match_id: matchId,
                 reporter_id: currentUser.id, // Use user_id, not profile_id
-                description: reportText,
                 evidence_url: evidenceUrl
             };
             
-            // Only add status if the column exists (will be handled by default in DB)
-            // Try to insert without status first, if it fails, try with status
+            // Try 'reason' first (common column name), then 'description' as fallback
+            if (reportText && reportText.trim()) {
+                reportPayload.reason = reportText.trim();
+                reportPayload.description = reportText.trim(); // Also set description in case both exist
+            }
+            
             const { data: reportData, error: reportError } = await supabase
                 .from('reports')
                 .insert(reportPayload)

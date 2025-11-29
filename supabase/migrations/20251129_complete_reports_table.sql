@@ -15,6 +15,17 @@ CREATE TABLE IF NOT EXISTS public.reports (
 -- Add missing columns if they don't exist
 DO $$ 
 BEGIN
+    -- Add reason column (some databases use this instead of description)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'reports' 
+        AND column_name = 'reason'
+    ) THEN
+        ALTER TABLE public.reports ADD COLUMN reason text;
+        RAISE NOTICE 'Added reason column';
+    END IF;
+
     -- Add description column
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
@@ -24,6 +35,21 @@ BEGIN
     ) THEN
         ALTER TABLE public.reports ADD COLUMN description text;
         RAISE NOTICE 'Added description column';
+    END IF;
+    
+    -- If reason exists but description doesn't, copy data from reason to description
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'reports' 
+        AND column_name = 'reason'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'reports' 
+        AND column_name = 'description'
+    ) THEN
+        UPDATE public.reports SET description = reason WHERE description IS NULL AND reason IS NOT NULL;
     END IF;
 
     -- Add evidence_url column

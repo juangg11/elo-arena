@@ -41,8 +41,8 @@ const Auth = () => {
       });
     } else {
       toast({
-        title: "Success",
-        description: "Logged in successfully!",
+        title: "¡Éxito!",
+        description: "Sesión iniciada correctamente",
       });
       navigate(redirect);
     }
@@ -101,39 +101,39 @@ const Auth = () => {
         <Link to="/" className="flex items-center justify-center gap-2 mb-8">
           <Trophy className="h-8 w-8 text-primary" />
           <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            MatchArena
+            Hero Arena
           </span>
         </Link>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl text-center">Bienvenido</CardTitle>
             <CardDescription className="text-center">
-              Enter the competitive arena
+              Entra a la arena competitiva
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
+                <TabsTrigger value="signup">Registrarse</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <Label htmlFor="login-email">Correo Electrónico</Label>
                     <Input
                       id="login-email"
                       type="email"
-                      placeholder="your@email.com"
+                      placeholder="tu@correo.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
+                    <Label htmlFor="login-password">Contraseña</Label>
                     <Input
                       id="login-password"
                       type="password"
@@ -144,7 +144,7 @@ const Auth = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Loading..." : "Login"}
+                    {loading ? "Cargando..." : "Iniciar Sesión"}
                   </Button>
                 </form>
               </TabsContent>
@@ -152,11 +152,11 @@ const Auth = () => {
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-nickname">Nickname</Label>
+                    <Label htmlFor="signup-nickname">Nombre de Usuario</Label>
                     <Input
                       id="signup-nickname"
                       type="text"
-                      placeholder="PlayerName"
+                      placeholder="NombreJugador"
                       value={nickname}
                       onChange={(e) => setNickname(e.target.value)}
                       required
@@ -176,18 +176,18 @@ const Auth = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-email">Correo Electrónico</Label>
                     <Input
                       id="signup-email"
                       type="email"
-                      placeholder="your@email.com"
+                      placeholder="tu@correo.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
+                    <Label htmlFor="signup-password">Contraseña</Label>
                     <Input
                       id="signup-password"
                       type="password"
@@ -198,7 +198,7 @@ const Auth = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Creating Account..." : "Sign Up"}
+                    {loading ? "Creando cuenta..." : "Registrarse"}
                   </Button>
                 </form>
               </TabsContent>

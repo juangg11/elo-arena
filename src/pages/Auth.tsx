@@ -87,10 +87,52 @@ const Auth = () => {
       }
     }
   };
+  // Handle email confirmation tokens from URL hash
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const type = hashParams.get('type');
+
+      if (accessToken && refreshToken && type === 'signup') {
+        // Set the session with the tokens
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          toast({
+            title: "Error",
+            description: "No se pudo confirmar tu cuenta. Por favor, intenta de nuevo.",
+            variant: "destructive",
+          });
+        } else if (data.session) {
+          toast({
+            title: "¡Cuenta confirmada!",
+            description: "Tu cuenta ha sido verificada correctamente.",
+          });
+          // Limpiar el hash de la URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          navigate("/dashboard");
+        }
+      }
+    };
+
+    handleAuthCallback();
+  }, [navigate, toast]);
+
   // If using social login / magic links, redirect once auth state changes
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) navigate(redirect);
+      if (session?.user && event !== 'SIGNED_OUT') {
+        // Solo redirigir si no estamos procesando un callback
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        if (!hashParams.get('access_token')) {
+          navigate(redirect);
+        }
+      }
     });
     return () => sub?.subscription.unsubscribe();
   }, [navigate, redirect]);

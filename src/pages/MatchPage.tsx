@@ -418,7 +418,10 @@ const MatchPage = () => {
                                 opponentResult: currentOpponentResult
                             });
                             
-                            const reportDescription = `Reporte automático: Conflicto de resultados. Tú declaraste ${result === 'win' ? 'victoria' : 'derrota'}, el rival declaró ${currentOpponentResult === 'win' ? 'victoria' : 'derrota'}.`;
+                            const conflictType = result === 'win' && currentOpponentResult === 'win' 
+                                ? 'ambos jugadores declararon victoria' 
+                                : 'ambos jugadores declararon derrota';
+                            const reportDescription = `Reporte automático: Conflicto de resultados. ${conflictType}.`;
                             
                             const { data: reportData, error: reportError } = await supabase
                                 .from('reports')

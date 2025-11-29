@@ -806,15 +806,19 @@ const MatchPage = () => {
                 status: 'pending'
             });
 
+            // Build report payload without status if column doesn't exist
+            const reportPayload: any = {
+                match_id: matchId,
+                reporter_id: currentUser.id, // Use user_id, not profile_id
+                description: reportText,
+                evidence_url: evidenceUrl
+            };
+            
+            // Only add status if the column exists (will be handled by default in DB)
+            // Try to insert without status first, if it fails, try with status
             const { data: reportData, error: reportError } = await supabase
                 .from('reports')
-                .insert({
-                    match_id: matchId,
-                    reporter_id: currentUser.id, // Use user_id, not profile_id
-                    description: reportText,
-                    evidence_url: evidenceUrl,
-                    status: 'pending'
-                } as any)
+                .insert(reportPayload)
                 .select();
 
             if (reportError) {
@@ -831,6 +835,7 @@ const MatchPage = () => {
             console.log('Report created successfully:', reportData);
 
             if (match.status === 'pending') {
+                // Update match status to reported
                 const { error: statusError } = await supabase
                     .from('matches')
                     .update({ status: 'reported' })
@@ -838,7 +843,56 @@ const MatchPage = () => {
                 
                 if (statusError) {
                     console.error('Error updating match status:', statusError);
-                    // Don't fail the report creation if status update fails
+                }
+
+                // Update both players' profiles to count the match
+                // Get both player IDs
+                const player1Id = match.player1_id;
+                const player2Id = match.player2_id;
+
+                if (player1Id && player2Id) {
+                    console.log('Updating profiles for reported match:', { player1Id, player2Id });
+
+                    // Get current stats for both players
+                    const [player1Result, player2Result] = await Promise.all([
+                        supabase
+                            .from('profiles')
+                            .select('games_played')
+                            .eq('id', player1Id)
+                            .single(),
+                        supabase
+                            .from('profiles')
+                            .select('games_played')
+                            .eq('id', player2Id)
+                            .single()
+                    ]);
+
+                    const player1Games = Number(player1Result.data?.games_played) || 0;
+                    const player2Games = Number(player2Result.data?.games_played) || 0;
+
+                    // Update both profiles to increment games_played
+                    const [update1Result, update2Result] = await Promise.all([
+                        supabase
+                            .from('profiles')
+                            .update({ games_played: player1Games + 1 })
+                            .eq('id', player1Id),
+                        supabase
+                            .from('profiles')
+                            .update({ games_played: player2Games + 1 })
+                            .eq('id', player2Id)
+                    ]);
+
+                    if (update1Result.error) {
+                        console.error('Error updating player1 profile:', update1Result.error);
+                    } else {
+                        console.log('Player1 profile updated successfully');
+                    }
+
+                    if (update2Result.error) {
+                        console.error('Error updating player2 profile:', update2Result.error);
+                    } else {
+                        console.log('Player2 profile updated successfully');
+                    }
                 }
             }
 

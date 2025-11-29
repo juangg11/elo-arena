@@ -750,44 +750,32 @@ const MatchPage = () => {
 
     const handleReport = async () => {
         if (!matchId || !userProfile || !match) return;
-
+    
         try {
-            // Get user_id (not profile_id) for the report
-            const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-            
-            if (userError || !currentUser) {
-                console.error('Error getting user:', userError);
-                toast({
-                    title: "Error",
-                    description: "No se pudo identificar al usuario para crear el reporte.",
-                    variant: "destructive"
-                });
-                return;
-            }
-
-            // Verify user exists by checking the profile (which has a valid foreign key to auth.users)
-            const { data: profileCheck, error: profileCheckError } = await supabase
+            // Verify that userProfile.id exists in profiles table
+            const { data: profileCheck, error: profileError } = await supabase
                 .from('profiles')
-                .select('user_id')
-                .eq('user_id', currentUser.id)
+                .select('id')
+                .eq('id', userProfile.id)
                 .single();
-
-            if (profileCheckError || !profileCheck) {
-                console.error('User profile not found, user may not exist in auth.users:', profileCheckError);
+    
+            if (profileError || !profileCheck) {
+                console.error('Profile not found in database:', profileError);
                 toast({
                     title: "Error",
-                    description: "Tu perfil no se encontró. Por favor, recarga la página.",
+                    description: "No se pudo verificar tu perfil. Recarga la página.",
                     variant: "destructive"
                 });
                 return;
             }
-
-            console.log('User verified, creating report with reporter_id:', currentUser.id);
-
+    
+            const reporterId = userProfile.id;
+            console.log('Creating report with verified reporter_id:', reporterId);
+    
             let evidenceUrl: string | null = null;
             if (reportFile) {
                 const ext = reportFile.name.split('.').pop();
-                const fileName = `${matchId}/${currentUser.id}-${Date.now()}.${ext}`;
+                const fileName = `${matchId}/${reporterId}-${Date.now()}.${ext}`;
                 
                 console.log('Uploading file to storage:', fileName);
                 
@@ -808,7 +796,7 @@ const MatchPage = () => {
                     });
                     return;
                 }
-
+    
                 // Get public URL
                 const { data: urlData } = supabase.storage
                     .from('reports')
@@ -821,20 +809,19 @@ const MatchPage = () => {
                     console.error('Could not get public URL for uploaded file');
                 }
             }
-
+    
             console.log('Creating report with data:', {
                 match_id: matchId,
-                reporter_id: currentUser.id,
+                reporter_id: reporterId,
                 description: reportText,
                 evidence_url: evidenceUrl,
                 status: 'pending'
             });
-
-            // Build report payload - try both 'reason' and 'description' column names
-            // Some databases might have 'reason' instead of 'description'
+    
+            // Build report payload using profile_id as reporter_id
             const reportPayload: any = {
                 match_id: matchId,
-                reporter_id: currentUser.id, // Use user_id, not profile_id
+                reporter_id: reporterId, // Use profile_id since FK points to profiles table
                 evidence_url: evidenceUrl
             };
             
@@ -848,7 +835,7 @@ const MatchPage = () => {
                 .from('reports')
                 .insert(reportPayload)
                 .select();
-
+    
             if (reportError) {
                 console.error('Report error:', reportError);
                 console.error('Report error details:', JSON.stringify(reportError, null, 2));
@@ -859,9 +846,9 @@ const MatchPage = () => {
                 });
                 return;
             }
-
+    
             console.log('Report created successfully:', reportData);
-
+    
             if (match.status === 'pending') {
                 // Update match status to reported
                 const { error: statusError } = await supabase
@@ -872,15 +859,15 @@ const MatchPage = () => {
                 if (statusError) {
                     console.error('Error updating match status:', statusError);
                 }
-
+    
                 // Update both players' profiles to count the match
                 // Get both player IDs
                 const player1Id = match.player1_id;
                 const player2Id = match.player2_id;
-
+    
                 if (player1Id && player2Id) {
                     console.log('Updating profiles for reported match:', { player1Id, player2Id });
-
+    
                     // Get current stats for both players
                     const [player1Result, player2Result] = await Promise.all([
                         supabase
@@ -894,10 +881,10 @@ const MatchPage = () => {
                             .eq('id', player2Id)
                             .single()
                     ]);
-
+    
                     const player1Games = Number(player1Result.data?.games_played) || 0;
                     const player2Games = Number(player2Result.data?.games_played) || 0;
-
+    
                     // Update both profiles to increment games_played
                     const [update1Result, update2Result] = await Promise.all([
                         supabase
@@ -909,13 +896,13 @@ const MatchPage = () => {
                             .update({ games_played: player2Games + 1 })
                             .eq('id', player2Id)
                     ]);
-
+    
                     if (update1Result.error) {
                         console.error('Error updating player1 profile:', update1Result.error);
                     } else {
                         console.log('Player1 profile updated successfully');
                     }
-
+    
                     if (update2Result.error) {
                         console.error('Error updating player2 profile:', update2Result.error);
                     } else {
@@ -923,7 +910,7 @@ const MatchPage = () => {
                     }
                 }
             }
-
+    
             toast({ title: "Reporte Enviado", description: "El caso será revisado por un administrador." });
             setIsReportOpen(false);
             setReportText("");

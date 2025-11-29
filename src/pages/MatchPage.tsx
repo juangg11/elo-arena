@@ -756,6 +756,7 @@ const MatchPage = () => {
             const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
             
             if (userError || !currentUser) {
+                console.error('Error getting user:', userError);
                 toast({
                     title: "Error",
                     description: "No se pudo identificar al usuario para crear el reporte.",
@@ -763,6 +764,25 @@ const MatchPage = () => {
                 });
                 return;
             }
+
+            // Verify user exists by checking the profile (which has a valid foreign key to auth.users)
+            const { data: profileCheck, error: profileCheckError } = await supabase
+                .from('profiles')
+                .select('user_id')
+                .eq('user_id', currentUser.id)
+                .single();
+
+            if (profileCheckError || !profileCheck) {
+                console.error('User profile not found, user may not exist in auth.users:', profileCheckError);
+                toast({
+                    title: "Error",
+                    description: "Tu perfil no se encontró. Por favor, recarga la página.",
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            console.log('User verified, creating report with reporter_id:', currentUser.id);
 
             let evidenceUrl: string | null = null;
             if (reportFile) {

@@ -650,18 +650,19 @@ const MatchPage = () => {
                     
                     // Show appropriate toast (only if update was successful)
                     if (!rpcError) {
-                    if (iAmWinner) {
-                        let message = `+${eloResult.winnerGain} ELO`;
-                        if (winnerRankChange.promoted) {
-                            message += ` ¡Subiste a ${winnerRankChange.newRank.toUpperCase()}!`;
+                        if (iAmWinner) {
+                            let message = `+${eloResult.winnerGain} ELO`;
+                            if (winnerRankChange.promoted) {
+                                message += ` ¡Subiste a ${winnerRankChange.newRank.toUpperCase()}!`;
+                            }
+                            toast({ title: "¡Victoria!", description: message });
+                        } else {
+                            let message = `-${eloResult.loserLoss} ELO`;
+                            if (loserRankChange.demoted) {
+                                message += ` Bajaste a ${loserRankChange.newRank.toUpperCase()}`;
+                            }
+                            toast({ title: "Derrota", description: message, variant: "destructive" });
                         }
-                        toast({ title: "¡Victoria!", description: message });
-                    } else {
-                        let message = `-${eloResult.loserLoss} ELO`;
-                        if (loserRankChange.demoted) {
-                            message += ` Bajaste a ${loserRankChange.newRank.toUpperCase()}`;
-                        }
-                        toast({ title: "Derrota", description: message, variant: "destructive" });
                     }
                 }
 

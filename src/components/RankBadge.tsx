@@ -51,8 +51,8 @@ const RankBadge = ({ rank, size = "md" }: RankBadgeProps) => {
     lg: "text-base px-4 py-2",
   };
 
-  // Provide a consistent minimum width for badges on non-sm sizes
-  const widthClass = size === "sm" ? "" : "min-w-[6rem] justify-center";
+  // Provide a consistent fixed width for badges on non-sm sizes to ensure symmetry
+  const widthClass = size === "sm" ? "" : "w-[7.5rem] justify-center";
   return (
     <div
       className={cn(

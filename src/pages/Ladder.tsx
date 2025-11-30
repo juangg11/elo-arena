@@ -149,11 +149,13 @@ const Ladder = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="min-w-[6rem] text-center">
+                          <div className="w-[6rem] text-center">
                             <div className="text-2xl font-bold text-primary">{player.elo}</div>
                             <div className="text-xs text-muted-foreground">ELO</div>
                           </div>
-                          <RankBadge rank={player.rankName} />
+                          <div className="flex justify-center">
+                            <RankBadge rank={player.rankName} />
+                          </div>
                         </div>
                       </div>
                     ))}

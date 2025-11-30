@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { User, Edit, Save, X, Upload, Loader2, Trophy } from "lucide-react";
+import Footer from "@/components/Footer";
 
 interface ProfileData {
     nickname: string;
@@ -384,6 +385,8 @@ const Profile = () => {
                     </Card>
                 </div>
             </main>
+            
+            <Footer />
         </div>
     );
 };

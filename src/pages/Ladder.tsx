@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Trophy, Medal, Crown, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Footer from "@/components/Footer";
 import ladderBg from "@/assets/ladder.jpg";
 
 interface Player {
@@ -192,6 +193,8 @@ const Ladder = () => {
           </Card>
         </main>
       </Tabs>
+      
+      <Footer />
     </div>
   );
 };

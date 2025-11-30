@@ -10,7 +10,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "simulate-bot": "tsx scripts/simulate-bot.ts",
-    "multi-bot": "tsx scripts/multi-bot.ts"
+    "multi-bot": "tsx scripts/multi-bot.ts",
+    "version:increment": "node scripts/increment-version.js",
+    "version:copy": "node -e \"const fs = require('fs'); fs.copyFileSync('VERSION.txt', 'public/VERSION.txt')\"",
+    "prebuild": "npm run version:copy",
+    "commit": "npm run version:increment && npm run version:copy && git add VERSION.txt public/VERSION.txt && git commit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

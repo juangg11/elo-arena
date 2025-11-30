@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
 import { Trophy, Calendar, Loader2, Search, ArrowLeft } from "lucide-react";
+import Footer from "@/components/Footer";
 
 interface Profile {
   id: string;
@@ -254,6 +255,8 @@ const MatchHistory = () => {
           </Card>
         </div>
       </main>
+      
+      <Footer />
     </div>
   );
 };

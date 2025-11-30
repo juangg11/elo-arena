@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import RankBadge from "@/components/RankBadge";
 import { Trophy, Swords, TrendingUp, User as UserIcon, Calendar, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Footer from "@/components/Footer";
 
 interface Profile {
   id: string;
@@ -332,6 +333,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </main>
+      
+      <Footer />
     </div>
   );
 };

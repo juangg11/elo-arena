@@ -83,17 +83,53 @@ const MatchPage = () => {
     // Timer for 10 minute timeout
     useEffect(() => {
         if (!match?.first_result_at || match.status !== 'pending') return;
+        if (timeoutExpired) return; // Already handled
 
-        const checkTimeout = () => {
+        const checkTimeout = async () => {
             const firstResultTime = new Date(match.first_result_at!).getTime();
             const now = Date.now();
             const elapsed = now - firstResultTime;
             const timeoutMs = RESULT_TIMEOUT_MINUTES * 60 * 1000;
             const remaining = timeoutMs - elapsed;
 
-            if (remaining <= 0) {
+            if (remaining <= 0 && !timeoutExpired) {
                 setTimeoutExpired(true);
                 setRemainingTime(0);
+                
+                // Auto-report the match due to timeout
+                try {
+                    const { data, error } = await supabase.rpc('auto_report_timeout_match', {
+                        p_match_id: match.id
+                    });
+                    
+                    if (error) {
+                        console.error('Error auto-reporting timeout match:', error);
+                        toast({
+                            title: "Error",
+                            description: "No se pudo crear el reporte automático. Por favor, reporta manualmente.",
+                            variant: "destructive"
+                        });
+                    } else if (data && data[0]?.success) {
+                        toast({
+                            title: "Tiempo agotado",
+                            description: "Se ha creado un reporte automático porque el oponente no declaró resultado a tiempo.",
+                            variant: "default"
+                        });
+                        // Refresh match data
+                        const { data: updatedMatch } = await supabase
+                            .from('matches')
+                            .select('*')
+                            .eq('id', match.id)
+                            .single();
+                        if (updatedMatch) {
+                            setMatch(updatedMatch as Match);
+                        }
+                        // Navigate to dashboard after a short delay
+                        setTimeout(() => navigate("/"), 2000);
+                    }
+                } catch (err) {
+                    console.error('Exception auto-reporting timeout match:', err);
+                }
             } else {
                 setRemainingTime(Math.ceil(remaining / 1000));
             }
@@ -103,7 +139,7 @@ const MatchPage = () => {
         const interval = setInterval(checkTimeout, 1000);
 
         return () => clearInterval(interval);
-    }, [match?.first_result_at, match?.status]);
+    }, [match?.first_result_at, match?.status, match?.id, timeoutExpired, navigate, toast]);
 
     // 1) Cargar perfil y match
     useEffect(() => {
@@ -157,6 +193,43 @@ const MatchPage = () => {
                 const myResultInDb = isUserPlayer1 ? matchData.result_a : matchData.result_b;
 
                 if (myResultInDb) setMyResult(myResultInDb);
+
+                // Check if timeout already expired and match is still pending
+                if (matchData.first_result_at && matchData.status === 'pending') {
+                    const firstResultTime = new Date(matchData.first_result_at).getTime();
+                    const now = Date.now();
+                    const elapsed = now - firstResultTime;
+                    const timeoutMs = RESULT_TIMEOUT_MINUTES * 60 * 1000;
+                    
+                    if (elapsed >= timeoutMs) {
+                        // Timeout already expired, create auto-report
+                        try {
+                            const { data, error } = await supabase.rpc('auto_report_timeout_match', {
+                                p_match_id: matchId
+                            });
+                            
+                            if (!error && data && data[0]?.success) {
+                                // Refresh match data
+                                const { data: updatedMatch } = await supabase
+                                    .from('matches')
+                                    .select('*')
+                                    .eq('id', matchId)
+                                    .single();
+                                if (updatedMatch) {
+                                    setMatch(updatedMatch as unknown as Match);
+                                }
+                                toast({
+                                    title: "Tiempo agotado",
+                                    description: "Se ha creado un reporte automático porque el tiempo para declarar resultado expiró.",
+                                    variant: "default"
+                                });
+                                setTimeout(() => navigate("/"), 2000);
+                            }
+                        } catch (err) {
+                            console.error('Exception auto-reporting timeout match on load:', err);
+                        }
+                    }
+                }
             } catch (err) {
                 console.error("fetchMatchAndProfile error:", err);
                 toast({ title: "Error", description: "Error cargando partida.", variant: "destructive" });

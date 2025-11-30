@@ -618,94 +618,38 @@ const MatchPage = () => {
                         eloResult.newLoserElo
                     );
                     
-                    // Get current stats (ensure we have numbers)
-                    const winnerCurrentWins = Number(winnerProfileData.wins) || 0;
-                    const winnerCurrentGames = Number(winnerProfileData.games_played) || 0;
-                    const loserCurrentGames = Number(loserProfileData.games_played) || 0;
-                    
-                    console.log('Updating profiles:', {
-                        winner: { 
-                            id: winnerId, 
-                            currentElo: winnerCurrentElo,
-                            currentWins: winnerCurrentWins, 
-                            currentGames: winnerCurrentGames,
-                            newElo: eloResult.newWinnerElo,
-                            newWins: winnerCurrentWins + 1,
-                            newGames: winnerCurrentGames + 1
-                        },
-                        loser: { 
-                            id: loserId,
-                            currentElo: loserCurrentElo,
-                            currentGames: loserCurrentGames,
-                            newElo: eloResult.newLoserElo,
-                            newGames: loserCurrentGames + 1
-                        }
+                    // --- INICIO DE LA CORRECCIÓN ---
+                    console.log('Updating profiles via RPC for security...');
+
+                    // Usamos RPC (Remote Procedure Call) para evitar bloqueos de RLS
+                    // ya que el usuario actual no tiene permiso para editar el perfil del rival directamente.
+                    const { error: rpcError } = await supabase.rpc('update_match_stats', {
+                        p_winner_id: winnerId,
+                        p_loser_id: loserId,
+                        p_winner_elo: Math.round(eloResult.newWinnerElo),
+                        p_loser_elo: Math.round(eloResult.newLoserElo),
+                        p_winner_rank: winnerRankChange.newRank,
+                        p_loser_rank: loserRankChange.newRank,
+                        p_winner_streak: winnerStreak >= 0 ? winnerStreak + 1 : 1,
+                        p_loser_streak: loserStreak <= 0 ? loserStreak - 1 : -1
                     });
-                    
-                    // Update both profiles in parallel
-                    const [winnerUpdateResult, loserUpdateResult] = await Promise.all([
-                        supabase
-                            .from('profiles')
-                            .update({
-                                elo: eloResult.newWinnerElo,
-                                rank: winnerRankChange.newRank,
-                                wins: winnerCurrentWins + 1,
-                                games_played: winnerCurrentGames + 1,
-                                current_streak: winnerStreak >= 0 ? winnerStreak + 1 : 1
-                            } as any)
-                            .eq('id', winnerId)
-                            .select(),
-                        supabase
-                            .from('profiles')
-                            .update({
-                                elo: eloResult.newLoserElo,
-                                rank: loserRankChange.newRank,
-                                games_played: loserCurrentGames + 1,
-                                current_streak: loserStreak <= 0 ? loserStreak - 1 : -1
-                            } as any)
-                            .eq('id', loserId)
-                            .select()
-                    ]);
-                    
-                    const { error: winnerUpdateError, data: winnerUpdateData } = winnerUpdateResult;
-                    const { error: loserUpdateError, data: loserUpdateData } = loserUpdateResult;
-                    
-                    if (winnerUpdateError) {
-                        console.error('Error updating winner profile:', winnerUpdateError);
-                        console.error('Winner update error details:', JSON.stringify(winnerUpdateError, null, 2));
+
+                    if (rpcError) {
+                        console.error('Error updating profiles via RPC:', rpcError);
                         toast({
-                            title: "Error",
-                            description: `Error al actualizar perfil del ganador: ${winnerUpdateError.message}`,
+                            title: "Error crítico",
+                            description: "No se pudieron actualizar las estadísticas. Contacta a soporte.",
                             variant: "destructive"
                         });
+                        // Aún así intentamos finalizar el match para no bloquear el flujo, 
+                        // pero es ideal detenerse aquí si es crítico.
                     } else {
-                        console.log('Winner profile updated successfully:', winnerUpdateData);
+                        console.log('Both profiles updated successfully via RPC');
                     }
+                    // --- FIN DE LA CORRECCIÓN ---
                     
-                    if (loserUpdateError) {
-                        console.error('Error updating loser profile:', loserUpdateError);
-                        console.error('Loser update error details:', JSON.stringify(loserUpdateError, null, 2));
-                        toast({
-                            title: "Error",
-                            description: `Error al actualizar perfil del perdedor: ${loserUpdateError.message}`,
-                            variant: "destructive"
-                        });
-                    } else {
-                        console.log('Loser profile updated successfully:', loserUpdateData);
-                    }
-                    
-                    // Log results but continue even if one fails (we'll try to update status anyway)
-                    if (winnerUpdateError || loserUpdateError) {
-                        console.error('Some profile updates failed:', {
-                            winnerError: winnerUpdateError,
-                            loserError: loserUpdateError
-                        });
-                        // Don't return - continue to update match status
-                    } else {
-                        console.log('Both profiles updated successfully');
-                    }
-                    
-                    // Show appropriate toast
+                    // Show appropriate toast (only if update was successful)
+                    if (!rpcError) {
                     if (iAmWinner) {
                         let message = `+${eloResult.winnerGain} ELO`;
                         if (winnerRankChange.promoted) {

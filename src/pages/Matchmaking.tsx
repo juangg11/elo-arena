@@ -231,239 +231,28 @@ const Matchmaking = () => {
         }
     };
 
-    // Función para crear la partida con verificación robusta
+    // Función para crear la partida usando RPC atómica (previene race conditions)
+    // Esta función usa locks de base de datos para prevenir matches simultáneos
     const createMatch = async (opponent: MatchQueueEntry, currentQueueId?: string) => {
         const activeQueueId = currentQueueId || queueIdRef.current;
         if (!profile || !activeQueueId) return;
 
-        console.log('Creating match with opponent:', opponent);
+        console.log('Creating match with opponent via atomic RPC:', opponent);
 
         try {
-            // Sistema de espera y verificación múltiple (10 segundos con verificaciones cada 2 segundos)
-            const maxWaitTime = 10000; // 10 segundos
-            const checkInterval = 2000; // Verificar cada 2 segundos
-            const maxChecks = Math.floor(maxWaitTime / checkInterval);
-            
-            for (let check = 0; check < maxChecks; check++) {
-                // Verificar que el oponente siga disponible
-                const { data: opponentCheck, error: checkError } = await supabase
-                    .from('matchmaking_queue' as any)
-                    .select('status, match_id, profile_id')
-                    .eq('id', opponent.id)
-                    .single();
+            // Usar función RPC atómica que previene race conditions
+            // Esta función usa FOR UPDATE locks y hace todo en una transacción
+            const { data: rpcResult, error: rpcError } = await supabase.rpc('create_match_atomic', {
+                p_player1_queue_id: activeQueueId,
+                p_player2_queue_id: opponent.id,
+                p_player1_profile_id: profile.id,
+                p_player2_profile_id: opponent.profile_id,
+                p_player1_elo: profile.elo,
+                p_player2_elo: opponent.elo
+            });
 
-                if (checkError || !opponentCheck) {
-                    console.log(`Check ${check + 1}: Opponent not found or error`);
-                    if (check < maxChecks - 1) {
-                        await new Promise(resolve => setTimeout(resolve, checkInterval));
-                        continue;
-                    }
-                    toast({
-                        title: "Error",
-                        description: "El oponente ya no está disponible.",
-                        variant: "destructive"
-                    });
-                    return;
-                }
-
-                // Si el oponente ya está en un match, verificar si hay matches duplicados
-                if (opponentCheck.match_id) {
-                    console.log(`Check ${check + 1}: Opponent already has match_id:`, opponentCheck.match_id);
-                    
-                    // Verificar si hay matches duplicados con este oponente
-                    const { data: existingMatches, error: matchesError } = await supabase
-                        .from('matches')
-                        .select('id, player1_id, player2_id, status')
-                        .or(`player1_id.eq.${opponentCheck.profile_id},player2_id.eq.${opponentCheck.profile_id}`)
-                        .eq('status', 'pending')
-                        .order('created_at', { ascending: false })
-                        .limit(5);
-
-                    if (existingMatches && existingMatches.length > 1) {
-                        console.log('Found duplicate matches, cleaning up...');
-                        // Eliminar matches duplicados (mantener el más reciente)
-                        const matchesToDelete = existingMatches.slice(1);
-                        for (const match of matchesToDelete) {
-                            await supabase.from('matches').delete().eq('id', match.id);
-                            console.log('Deleted duplicate match:', match.id);
-                        }
-                        // Continuar verificando
-                        if (check < maxChecks - 1) {
-                            await new Promise(resolve => setTimeout(resolve, checkInterval));
-                            continue;
-                        }
-                    }
-                    
-                    toast({
-                        title: "Oponente no disponible",
-                        description: "El oponente ya encontró partida. Buscando otro...",
-                        variant: "destructive"
-                    });
-                    return;
-                }
-
-                // Si el oponente no está buscando, cancelar
-                if (opponentCheck.status !== 'searching') {
-                    console.log(`Check ${check + 1}: Opponent status is not searching:`, opponentCheck.status);
-                    if (check < maxChecks - 1) {
-                        await new Promise(resolve => setTimeout(resolve, checkInterval));
-                        continue;
-                    }
-                    toast({
-                        title: "Oponente no disponible",
-                        description: "El oponente ya encontró partida. Buscando otro...",
-                        variant: "destructive"
-                    });
-                    return;
-                }
-
-                // Verificar que nosotros tampoco estemos ya en un match
-                const { data: myCheck, error: myCheckError } = await supabase
-                    .from('matchmaking_queue' as any)
-                    .select('status, match_id, profile_id')
-                    .eq('id', activeQueueId)
-                    .single();
-
-                if (myCheckError || !myCheck) {
-                    console.error('Error checking own status:', myCheckError);
-                    return;
-                }
-
-                if (myCheck.status !== 'searching' || myCheck.match_id) {
-                    console.log('Already matched:', myCheck);
-                    return;
-                }
-
-                // Verificar si ya existe un match entre estos dos jugadores
-                const { data: existingMatch, error: existingMatchError } = await supabase
-                    .from('matches')
-                    .select('id, status')
-                    .or(`and(player1_id.eq.${profile.id},player2_id.eq.${opponentCheck.profile_id}),and(player1_id.eq.${opponentCheck.profile_id},player2_id.eq.${profile.id})`)
-                    .eq('status', 'pending')
-                    .limit(1)
-                    .single();
-
-                if (existingMatch && !existingMatchError) {
-                    console.log('Match already exists between these players:', existingMatch.id);
-                    // Usar el match existente
-                    const matchId = existingMatch.id;
-                    
-                    // Actualizar ambas entradas
-                    await Promise.all([
-                        supabase
-                            .from('matchmaking_queue' as any)
-                            .update({
-                                status: 'matched',
-                                matched_with: opponent.id,
-                                match_id: matchId
-                            })
-                            .eq('id', activeQueueId)
-                            .eq('status', 'searching')
-                            .is('match_id', null),
-                        supabase
-                            .from('matchmaking_queue' as any)
-                            .update({
-                                status: 'matched',
-                                matched_with: activeQueueId,
-                                match_id: matchId
-                            })
-                            .eq('id', opponent.id)
-                            .eq('status', 'searching')
-                            .is('match_id', null)
-                    ]);
-
-                    cleanupSearch();
-                    toast({
-                        title: "¡Match encontrado!",
-                        description: "Redirigiendo a la sala de match...",
-                    });
-                    setTimeout(() => {
-                        navigate(`/match/${matchId}`);
-                    }, 1000);
-                    return;
-                }
-
-                // Si llegamos aquí, ambos están disponibles, crear el match
-                break; // Salir del loop de verificación
-            }
-
-            const { data: matchData, error: matchError } = await supabase
-                .from('matches')
-                .insert({
-                    player1_id: profile.id,
-                    player2_id: opponent.profile_id,
-                    player1_elo: profile.elo,
-                    player2_elo: opponent.elo,
-                    status: 'pending'
-                } as any) // Añadimos 'as any' para evitar conflictos de tipado de Supabase
-                .select('id')
-                .single();
-
-            if (matchError) {
-                console.error('Error creating match:', matchError);
-                throw matchError;
-            }
-            
-            console.log('Match created:', matchData);
-
-            const matchResult = matchData as MatchInsertResult;
-            const matchId = matchResult.id;
-
-            // Verificar si hay matches duplicados después de crear este
-            const { data: duplicateMatches, error: dupError } = await supabase
-                .from('matches')
-                .select('id, player1_id, player2_id, created_at')
-                .or(`and(player1_id.eq.${profile.id},player2_id.eq.${opponent.profile_id}),and(player1_id.eq.${opponent.profile_id},player2_id.eq.${profile.id})`)
-                .eq('status', 'pending')
-                .order('created_at', { ascending: false });
-
-            if (duplicateMatches && duplicateMatches.length > 1) {
-                console.log('Found duplicate matches after creation, cleaning up...');
-                // Mantener el más reciente (el que acabamos de crear) y eliminar los demás
-                const matchesToDelete = duplicateMatches.filter(m => m.id !== matchId);
-                for (const match of matchesToDelete) {
-                    await supabase.from('matches').delete().eq('id', match.id);
-                    console.log('Deleted duplicate match:', match.id);
-                    
-                    // Limpiar las entradas de cola asociadas
-                    await supabase
-                        .from('matchmaking_queue' as any)
-                        .update({ status: 'searching', matched_with: null, match_id: null })
-                        .eq('match_id', match.id);
-                }
-            }
-
-            // Actualizar ambas entradas en paralelo y verificar que se actualicen correctamente
-            const [myUpdateResult, opponentUpdateResult] = await Promise.all([
-                supabase
-                    .from('matchmaking_queue' as any)
-                    .update({
-                        status: 'matched',
-                        matched_with: opponent.id,
-                        match_id: matchId
-                    })
-                    .eq('id', activeQueueId)
-                    .eq('status', 'searching') // Solo actualizar si sigue buscando
-                    .is('match_id', null) // Solo si no tiene match_id
-                    .select(),
-                supabase
-                    .from('matchmaking_queue' as any)
-                    .update({
-                        status: 'matched',
-                        matched_with: activeQueueId,
-                        match_id: matchId
-                    })
-                    .eq('id', opponent.id)
-                    .eq('status', 'searching') // Solo actualizar si sigue buscando
-                    .is('match_id', null) // Solo si no tiene match_id
-                    .select()
-            ]);
-
-            // Verificar que ambas actualizaciones fueron exitosas
-            if (!myUpdateResult.data || myUpdateResult.data.length === 0) {
-                console.error('Failed to update own queue entry - already matched?');
-                // Si no se pudo actualizar, eliminar el match creado
-                await supabase.from('matches').delete().eq('id', matchId);
+            if (rpcError) {
+                console.error('Error calling create_match_atomic RPC:', rpcError);
                 toast({
                     title: "Error",
                     description: "No se pudo crear el match. Intenta de nuevo.",
@@ -472,21 +261,17 @@ const Matchmaking = () => {
                 return;
             }
 
-            if (!opponentUpdateResult.data || opponentUpdateResult.data.length === 0) {
-                console.error('Failed to update opponent queue entry - already matched?');
-                // Si no se pudo actualizar, eliminar el match creado y revertir nuestra actualización
-                await supabase.from('matches').delete().eq('id', matchId);
-                await supabase
-                    .from('matchmaking_queue' as any)
-                    .update({ status: 'searching', matched_with: null, match_id: null })
-                    .eq('id', activeQueueId);
-                toast({
-                    title: "Oponente no disponible",
-                    description: "El oponente ya encontró partida. Buscando otro...",
-                    variant: "destructive"
-                });
+            // La función RPC devuelve un array con un objeto
+            const result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+            
+            if (!result || !result.success) {
+                console.log('Match creation failed:', result?.error_message || 'Unknown error');
+                // El oponente ya está en otro match, continuar buscando silenciosamente
                 return;
             }
+
+            const matchId = result.match_id;
+            console.log('Match created successfully via RPC:', matchId);
 
             cleanupSearch();
 
@@ -494,13 +279,11 @@ const Matchmaking = () => {
                 title: "¡Match encontrado!",
                 description: "Redirigiendo a la sala de match...",
             });
-
             setTimeout(() => {
                 navigate(`/match/${matchId}`);
             }, 1000);
-
         } catch (error) {
-            console.error('Error creando match:', error);
+            console.error('Error creating match:', error);
             toast({
                 title: "Error",
                 description: "No se pudo crear el match.",

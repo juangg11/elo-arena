@@ -9,8 +9,6 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "simulate-bot": "tsx scripts/simulate-bot.ts",
-    "multi-bot": "tsx scripts/multi-bot.ts",
     "version:increment": "node scripts/increment-version.js",
     "version:copy": "node -e \"const fs = require('fs'); fs.copyFileSync('VERSION.txt', 'public/VERSION.txt')\"",
     "prebuild": "npm run version:copy",

@@ -1,6 +1,5 @@
--- Create atomic RPC function to create matches safely
--- This function prevents race conditions when multiple players try to match simultaneously
--- It uses SECURITY DEFINER to bypass RLS and ensures atomic operations
+-- Fix ambiguous match_id reference in create_match_atomic function
+-- The issue was that match_id could refer to either the RETURNS TABLE column or the table column
 
 CREATE OR REPLACE FUNCTION public.create_match_atomic(
     p_player1_queue_id UUID,
@@ -29,7 +28,7 @@ DECLARE
 BEGIN
     -- Lock both queue entries to prevent concurrent modifications
     -- First, verify player1 is still searching
-    SELECT status, match_id INTO v_player1_status, v_player1_match_id
+    SELECT status, matchmaking_queue.match_id INTO v_player1_status, v_player1_match_id
     FROM matchmaking_queue
     WHERE id = p_player1_queue_id
     FOR UPDATE;
@@ -45,7 +44,7 @@ BEGIN
     END IF;
     
     -- Verify player2 is still searching
-    SELECT status, match_id INTO v_player2_status, v_player2_match_id
+    SELECT status, matchmaking_queue.match_id INTO v_player2_status, v_player2_match_id
     FROM matchmaking_queue
     WHERE id = p_player2_queue_id
     FOR UPDATE;
@@ -81,7 +80,7 @@ BEGIN
             match_id = v_existing_match_id
         WHERE id IN (p_player1_queue_id, p_player2_queue_id)
         AND status = 'searching'
-        AND match_id IS NULL;
+        AND matchmaking_queue.match_id IS NULL;
         
         RETURN QUERY SELECT v_existing_match_id, TRUE, NULL::TEXT;
         RETURN;
@@ -102,7 +101,7 @@ BEGIN
         match_id = v_match_id
     WHERE id IN (p_player1_queue_id, p_player2_queue_id)
     AND status = 'searching'
-    AND match_id IS NULL;
+    AND matchmaking_queue.match_id IS NULL;
     
     -- Verify both updates succeeded by checking row count
     IF (SELECT COUNT(*) FROM matchmaking_queue WHERE id IN (p_player1_queue_id, p_player2_queue_id) AND matchmaking_queue.match_id = v_match_id) != 2 THEN

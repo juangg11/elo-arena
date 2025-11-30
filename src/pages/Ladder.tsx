@@ -69,10 +69,10 @@ const Ladder = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <Tabs defaultValue="global" onValueChange={setSelectedRegion} className="space-y-0">
+      <Tabs defaultValue="global" onValueChange={setSelectedRegion} className="space-y-0 flex-1 flex flex-col">
         {/* Hero Section with Background */}
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div
@@ -106,7 +106,7 @@ const Ladder = () => {
           </div>
         </section>
 
-        <main className="container mx-auto px-4 pb-12">
+        <main className="container mx-auto px-4 pb-12 flex-1">
           {/* Contenido único que persiste */}
           <div className="space-y-4">
             <Card className="border-border/50">

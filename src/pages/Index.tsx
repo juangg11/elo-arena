@@ -38,9 +38,10 @@ const CompetirButton = ({ navigate }: { navigate: any }) => {
 const Index = () => {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       
+      <div className="flex-1">
       {/* Hero Section */}
       <section className="relative pt-24 pb-20 overflow-hidden">
         <div 
@@ -160,6 +161,7 @@ const Index = () => {
           </div>
         </div>
       </section>
+      </div>
       
       <Footer />
     </div>

@@ -236,11 +236,12 @@ const Profile = () => {
 
     if (loading || !profile) {
         return (
-            <div className="min-h-screen bg-background">
+            <div className="min-h-screen bg-background flex flex-col">
                 <Navbar />
-                <main className="container mx-auto px-4 pt-24 pb-12 flex items-center justify-center">
+                <main className="container mx-auto px-4 pt-24 pb-12 flex items-center justify-center flex-1">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </main>
+                <Footer />
             </div>
         );
     }
@@ -250,10 +251,10 @@ const Profile = () => {
         : 0;
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background flex flex-col">
             <Navbar />
 
-            <main className="container mx-auto px-4 pt-24 pb-12">
+            <main className="container mx-auto px-4 pt-24 pb-12 flex-1">
                 <div className="max-w-4xl mx-auto space-y-6">
                     <Card className="border-border/50 bg-gradient-to-br from-card to-card/50">
                         <CardHeader className="flex flex-row items-center justify-between">

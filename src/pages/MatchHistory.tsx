@@ -121,20 +121,21 @@ const MatchHistory = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <main className="container mx-auto px-4 pt-24 pb-12 flex items-center justify-center">
+        <main className="container mx-auto px-4 pt-24 pb-12 flex items-center justify-center flex-1">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </main>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="container mx-auto px-4 pt-24 pb-12">
+      <main className="container mx-auto px-4 pt-24 pb-12 flex-1">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">

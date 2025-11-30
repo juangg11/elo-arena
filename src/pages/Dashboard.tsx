@@ -173,10 +173,10 @@ const Dashboard = () => {
     : 0;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="container mx-auto px-4 pt-24 pb-12">
+      <main className="container mx-auto px-4 pt-24 pb-12 flex-1">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Profile Card */}
           <Card className="lg:col-span-2 border-border/50 bg-gradient-to-br from-card to-card/50">

@@ -868,6 +868,7 @@ const MatchPage = () => {
     
             if (match.status === 'pending') {
                 // Update match status to reported
+                // NOTE: We do NOT increment games_played, wins, or losses because reported matches should be nullified
                 const { error: statusError } = await supabase
                     .from('matches')
                     .update({ status: 'reported' })
@@ -875,56 +876,6 @@ const MatchPage = () => {
                 
                 if (statusError) {
                     console.error('Error updating match status:', statusError);
-                }
-    
-                // Update both players' profiles to count the match
-                // Get both player IDs
-                const player1Id = match.player1_id;
-                const player2Id = match.player2_id;
-    
-                if (player1Id && player2Id) {
-                    console.log('Updating profiles for reported match:', { player1Id, player2Id });
-    
-                    // Get current stats for both players
-                    const [player1Result, player2Result] = await Promise.all([
-                        supabase
-                            .from('profiles')
-                            .select('games_played')
-                            .eq('id', player1Id)
-                            .single(),
-                        supabase
-                            .from('profiles')
-                            .select('games_played')
-                            .eq('id', player2Id)
-                            .single()
-                    ]);
-    
-                    const player1Games = Number(player1Result.data?.games_played) || 0;
-                    const player2Games = Number(player2Result.data?.games_played) || 0;
-    
-                    // Update both profiles to increment games_played
-                    const [update1Result, update2Result] = await Promise.all([
-                        supabase
-                            .from('profiles')
-                            .update({ games_played: player1Games + 1 })
-                            .eq('id', player1Id),
-                        supabase
-                            .from('profiles')
-                            .update({ games_played: player2Games + 1 })
-                            .eq('id', player2Id)
-                    ]);
-    
-                    if (update1Result.error) {
-                        console.error('Error updating player1 profile:', update1Result.error);
-                    } else {
-                        console.log('Player1 profile updated successfully');
-                    }
-    
-                    if (update2Result.error) {
-                        console.error('Error updating player2 profile:', update2Result.error);
-                    } else {
-                        console.log('Player2 profile updated successfully');
-                    }
                 }
             }
     

@@ -25,7 +25,7 @@ export const RANK_THRESHOLDS = [
 const BASE_K = 20;
 
 // Streak multipliers
-const STREAK_MULTIPLIERS = [1.0, 1.0, 1.1, 1.15, 1.2, 1.25]; // 0, 1, 2, 3, 4, 5+ streak
+const STREAK_MULTIPLIERS = [1.0, 1.2, 1.3, 1.4, 1.5, 1.6]; // 0, 1, 2, 3, 4, 5+ streak
 
 // ELO tier modifiers (higher ELO = harder to gain)
 const ELO_TIER_MODIFIERS: { threshold: number; modifier: number }[] = [

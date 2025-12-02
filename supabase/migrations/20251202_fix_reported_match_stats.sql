@@ -1,5 +1,5 @@
--- Create function to automatically report matches where timeout expired
--- This function creates a report when a player doesn't declare result within 10 minutes
+-- Update auto_report_timeout_match function to NOT increment games_played
+-- Reported matches should be completely nullified and not count towards any statistics
 
 CREATE OR REPLACE FUNCTION public.auto_report_timeout_match(
     p_match_id UUID
@@ -81,11 +81,13 @@ BEGIN
     );
     
     -- Update match status to reported
+    -- NOTE: We do NOT increment games_played because reported matches should not count towards statistics
     UPDATE matches
     SET status = 'reported'
     WHERE id = p_match_id;
     
     -- Delete matchmaking queue entries for both players to prevent residual matches
+    -- This ensures the queue is cleaned up and players can search for new matches
     DELETE FROM matchmaking_queue
     WHERE match_id = p_match_id;
     

@@ -29,14 +29,14 @@ const STREAK_MULTIPLIERS = [1.0, 1.0, 1.1, 1.15, 1.2, 1.25]; // 0, 1, 2, 3, 4, 5
 
 // ELO tier modifiers (higher ELO = harder to gain)
 const ELO_TIER_MODIFIERS: { threshold: number; modifier: number }[] = [
-  { threshold: 500, modifier: 1.2 },   // Novato: easier to climb
-  { threshold: 800, modifier: 1.1 },   // Aspirante: slightly easier
-  { threshold: 1200, modifier: 1.0 },  // Promesa: normal
-  { threshold: 1400, modifier: 0.95 }, // Relampago: slightly harder
-  { threshold: 1600, modifier: 0.9 },  // Tormenta: harder
-  { threshold: 1800, modifier: 0.85 }, // Supernova: much harder
-  { threshold: 2500, modifier: 0.8 },  // Inazuma: very hard
-  { threshold: Infinity, modifier: 0.75 }, // Heroe: extremely hard
+  { threshold: 500, modifier: 3 },   // Novato: easier to climb
+  { threshold: 800, modifier: 2 },   // Aspirante: slightly easier
+  { threshold: 1200, modifier: 1.5 },  // Promesa: normal
+  { threshold: 1400, modifier: 1.2 }, // Relampago: slightly harder
+  { threshold: 1600, modifier: 1 },  // Tormenta: harder
+  { threshold: 1800, modifier: 0.8 }, // Supernova: much harder
+  { threshold: 2500, modifier: 0.7 },  // Inazuma: very hard
+  { threshold: Infinity, modifier: 0.6 }, // Heroe: extremely hard
 ];
 
 /**
@@ -49,6 +49,42 @@ export function getRankFromElo(elo: number): string {
     }
   }
   return 'novato';
+}
+
+/**
+ * Get the index of a rank in the RANK_THRESHOLDS array
+ */
+export function getRankIndex(rankName: string): number {
+  return RANK_THRESHOLDS.findIndex(r => r.name === rankName);
+}
+
+/**
+ * Get adjacent ranks within a certain distance
+ * @param rankName - Current rank name
+ * @param distance - How many ranks away to include (1 = adjacent, 2 = 2 ranks away, etc.)
+ * @returns Array of rank names including the current rank and adjacent ones
+ */
+export function getAdjacentRanks(rankName: string, distance: number): string[] {
+  const currentIndex = getRankIndex(rankName);
+  if (currentIndex === -1) return [rankName];
+
+  const ranks: string[] = [];
+  const minIndex = Math.max(0, currentIndex - distance);
+  const maxIndex = Math.min(RANK_THRESHOLDS.length - 1, currentIndex + distance);
+
+  for (let i = minIndex; i <= maxIndex; i++) {
+    ranks.push(RANK_THRESHOLDS[i].name);
+  }
+
+  return ranks;
+}
+
+/**
+ * Get ELO range for a specific rank
+ */
+export function getRankEloRange(rankName: string): { minElo: number; maxElo: number } | null {
+  const rank = RANK_THRESHOLDS.find(r => r.name === rankName);
+  return rank ? { minElo: rank.minElo, maxElo: rank.maxElo } : null;
 }
 
 /**
@@ -103,36 +139,36 @@ export function calculateEloChange(
   const eloDiff = winnerElo - loserElo;
   const isUpset = eloDiff < -100; // Winner had significantly lower ELO
   const isFavoriteWin = eloDiff > 100; // Winner had significantly higher ELO
-  
+
   // Expected scores
   const expectedWinner = getExpectedScore(winnerElo, loserElo);
   const expectedLoser = 1 - expectedWinner;
-  
+
   // Base change calculation
   let winnerBaseChange = BASE_K * (1 - expectedWinner);
   let loserBaseChange = BASE_K * expectedLoser;
-  
+
   // Apply ELO tier modifiers
   const winnerTierMod = getEloTierModifier(winnerElo);
   const loserTierMod = getEloTierModifier(loserElo);
-  
+
   winnerBaseChange *= winnerTierMod;
   loserBaseChange *= loserTierMod;
-  
+
   // Apply streak multipliers
   // Winner: if they were on a win streak, bonus. If breaking a loss streak, smaller bonus
-  const winnerStreakMod = winnerStreak >= 0 
+  const winnerStreakMod = winnerStreak >= 0
     ? getStreakMultiplier(winnerStreak + 1) // Continuing/starting win streak
     : 1.0; // Breaking loss streak - normal points
-  
+
   // Loser: if they were on a loss streak, lose more. If breaking a win streak, normal loss
   const loserStreakMod = loserStreak <= 0
     ? getStreakMultiplier(Math.abs(loserStreak) + 1) // Continuing/starting loss streak
     : 1.0; // Breaking win streak - normal loss
-  
+
   winnerBaseChange *= winnerStreakMod;
   loserBaseChange *= loserStreakMod;
-  
+
   // Upset adjustments
   if (isUpset) {
     // Underdog wins - they get bonus, favorite loses more
@@ -143,19 +179,19 @@ export function calculateEloChange(
     winnerBaseChange *= 0.7;
     loserBaseChange *= 0.6; // Underdog protection
   }
-  
+
   // Round and cap the values
   let winnerGain = Math.round(winnerBaseChange);
   let loserLoss = Math.round(loserBaseChange);
-  
+
   // Minimum changes
   winnerGain = Math.max(winnerGain, 5); // Minimum 5 points for winning
   loserLoss = Math.max(loserLoss, 5); // Minimum 5 points lost
-  
+
   // Maximum caps (30 normally, 35 for extreme cases)
   const maxNormal = 30;
   const maxExtreme = 35;
-  
+
   if (isUpset && Math.abs(eloDiff) > 300) {
     // Extreme upset - allow up to 35
     winnerGain = Math.min(winnerGain, maxExtreme);
@@ -164,11 +200,11 @@ export function calculateEloChange(
     winnerGain = Math.min(winnerGain, maxNormal);
     loserLoss = Math.min(loserLoss, maxNormal);
   }
-  
+
   // Calculate new ELOs
   const newWinnerElo = winnerElo + winnerGain;
   const newLoserElo = Math.max(0, loserElo - loserLoss); // Can't go below 0
-  
+
   // Generate explanation
   let explanation = '';
   if (isUpset) {
@@ -178,7 +214,7 @@ export function calculateEloChange(
   } else {
     explanation = `Partido equilibrado: +${winnerGain}`;
   }
-  
+
   return {
     winnerGain,
     loserLoss,
@@ -205,11 +241,11 @@ export function checkRankChange(
   const oldRank = getRankFromElo(oldElo);
   const newRank = getRankFromElo(newElo);
   const changed = oldRank !== newRank;
-  
+
   // Find rank indices
   const oldIndex = RANK_THRESHOLDS.findIndex(r => r.name === oldRank);
   const newIndex = RANK_THRESHOLDS.findIndex(r => r.name === newRank);
-  
+
   return {
     changed,
     promoted: newIndex > oldIndex,
@@ -237,13 +273,13 @@ export function calculateMatchPreview(
 } {
   // If player 1 wins
   const p1Wins = calculateEloChange(player1Elo, player2Elo, player1Streak, player2Streak);
-  
+
   // If player 2 wins
   const p2Wins = calculateEloChange(player2Elo, player1Elo, player2Streak, player1Streak);
-  
+
   const player1WinChance = Math.round(getExpectedScore(player1Elo, player2Elo) * 100);
   const player2WinChance = 100 - player1WinChance;
-  
+
   return {
     player1WinGain: p1Wins.winnerGain,
     player1LoseLoss: p2Wins.loserLoss,

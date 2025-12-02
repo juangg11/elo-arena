@@ -12,3 +12,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://hero-arena-victory-road.vercel.app/sitemap.xml

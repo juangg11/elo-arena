@@ -45,9 +45,9 @@ const MATCHMAKING_RULES = [
 ];
 
 // Rank-based matchmaking phases (no region filtering)
-const PHASE_1_TIME = 120; // 0-2 min: Same rank only
-const PHASE_2_TIME = 240; // 2-4 min: Adjacent ranks (±1)
-const PHASE_3_TIME = 360; // 4-6 min: ±2 ranks (max expansion)
+const PHASE_1_TIME = 20; // 0-2 min: Same rank only 120
+const PHASE_2_TIME = 40; // 2-4 min: Adjacent ranks (±1) 240
+const PHASE_3_TIME = 360; // 4-6 min: ±2 ranks (max expansion) 360
 
 const Matchmaking = () => {
     const [user, setUser] = useState<any>(null);

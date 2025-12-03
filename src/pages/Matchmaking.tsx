@@ -63,11 +63,17 @@ const Matchmaking = () => {
     const searchIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const subscriptionRef = useRef<any>(null);
     const queueIdRef = useRef<string | null>(null);
+    const searchTimeRef = useRef(0);
 
     // Mantener queueIdRef sincronizado con el estado
     useEffect(() => {
         queueIdRef.current = queueId;
     }, [queueId]);
+
+    // Keep searchTimeRef in sync with searchTime state
+    useEffect(() => {
+        searchTimeRef.current = searchTime;
+    }, [searchTime]);
 
     // Timer para la búsqueda
     useEffect(() => {
@@ -177,7 +183,7 @@ const Matchmaking = () => {
         }
 
         try {
-            const currentTime = searchTime;
+            const currentTime = searchTimeRef.current;
             const myRank = profile.rank || 'novato';
 
             // Determine which ranks to search based on time

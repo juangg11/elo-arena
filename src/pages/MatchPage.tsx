@@ -802,7 +802,8 @@ const MatchPage = () => {
             }
 
             const reporterId = userProfile.id;
-            console.log('Creating report with verified reporter_id (auth):', reporterId);
+            console.log('Creating report with verified reporter_id (profile_id):', reporterId);
+            console.log('UserProfile object:', userProfile);
 
             let evidenceUrl: string | null = null;
             if (reportFile) {

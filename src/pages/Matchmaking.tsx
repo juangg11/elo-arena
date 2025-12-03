@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import fondo from "@/assets/fondo.jpg";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import RankBadge from "@/components/RankBadge";
@@ -45,8 +46,8 @@ const MATCHMAKING_RULES = [
 ];
 
 // Rank-based matchmaking phases (no region filtering)
-const PHASE_1_TIME = 20; // 0-2 min: Same rank only 120
-const PHASE_2_TIME = 40; // 2-4 min: Adjacent ranks (±1) 240
+const PHASE_1_TIME = 120; // 0-2 min: Same rank only 120
+const PHASE_2_TIME = 240; // 2-4 min: Adjacent ranks (±1) 240
 const PHASE_3_TIME = 360; // 4-6 min: ±2 ranks (max expansion) 360
 
 const Matchmaking = () => {
@@ -515,132 +516,146 @@ const Matchmaking = () => {
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            <Navbar />
+        <div className="h-screen bg-background relative overflow-hidden">
+            {/* Background Image Layer */}
+            <div
+                className="fixed inset-0 top-16 z-0"
+                style={{
+                    backgroundImage: `url(${fondo})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'top',
+                    opacity: 0.2
+                }}
+            />
 
-            <main className="container mx-auto px-4 pt-24 pb-12">
-                <div className="max-w-2xl mx-auto space-y-6">
-                    <Card className="border-border/50 bg-gradient-to-br from-card to-card/50">
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-2xl font-bold mb-1">{profile.nickname}</h3>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Users className="h-4 w-4" />
-                                        <span className="text-sm">{getRegionName(profile.region)}</span>
-                                    </div>
-                                </div>
-                                <RankBadge rank={profile.rank} size="lg" />
-                                <div className="text-right">
-                                    <p className="text-2xl font-bold mt-2">{profile.elo}</p>
-                                    <p className="text-xs text-muted-foreground">ELO Rating</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+            {/* Content Layer */}
+            <div className="relative z-10">
+                <Navbar />
 
-                    <Card className="border-border/50">
-                        <CardHeader>
-                            <CardTitle className="text-center flex items-center justify-center gap-2">
-                                <Search className="h-5 w-5" />
-                                Búsqueda de Partida
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            {isSearching ? (
-                                <div className="text-center space-y-6 py-8">
-                                    <div className="relative">
-                                        <Loader2 className="h-16 w-16 animate-spin mx-auto text-primary" />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="h-12 w-12 rounded-full bg-primary/20 animate-ping" />
+                <main className="container mx-auto px-4 pt-24 pb-12">
+                    <div className="max-w-2xl mx-auto space-y-6">
+                        <Card className="border-border/50 bg-gradient-to-br from-card to-card/50">
+                            <CardContent className="pt-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-2xl font-bold mb-1">{profile.nickname}</h3>
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                            <Users className="h-4 w-4" />
+                                            <span className="text-sm">{getRegionName(profile.region)}</span>
                                         </div>
                                     </div>
-
-                                    <div>
-                                        {/* Title removed */}
-                                        <p className="text-muted-foreground mb-1">
-                                            {getSearchPhaseText()}
-                                        </p>
-                                        {/* ELO range removed */}
-
-                                        <div className="flex items-center justify-center gap-4 text-sm mt-4">
-                                            <Badge variant="secondary" className="gap-2">
-                                                <Clock className="h-3 w-3" />
-                                                {formatTime(searchTime)}
-                                            </Badge>
-                                            {/* Region badge removed */}
-                                        </div>
-
-                                        {/* Expansion message 1 removed */}
-                                        {/* Expansion message 2 removed */}
-                                    </div>
-
-                                    <Button
-                                        variant="destructive"
-                                        onClick={handleCancelSearch}
-                                        className="mt-4"
-                                    >
-                                        <XCircle className="h-4 w-4 mr-2" /> Cancelar búsqueda
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="text-center space-y-6 py-8">
-                                    <Trophy className="h-16 w-16 mx-auto text-primary opacity-50" />
-                                    <div>
-                                        <h3 className="text-xl font-bold mb-2">¿Listo para competir?</h3>
-                                        <p className="text-muted-foreground">
-                                            Encuentra oponentes de tu nivel y demuestra tus habilidades
-                                        </p>
-                                    </div>
-                                    <Button
-                                        size="lg"
-                                        onClick={handleStartSearch}
-                                        className="mt-4 gap-2"
-                                    >
-                                        <Search className="h-5 w-5" />
-                                        Buscar Ranked
-                                    </Button>
-                                </div>
-                            )}
-
-                            <div className="border-t border-border/50 pt-6 space-y-4">
-                                <div>
-                                    <h4 className="font-semibold mb-3 flex items-center justify-center gap-2">
-                                        <Trophy className="h-4 w-4" />
-                                        Cómo funciona
-                                    </h4>
-                                    <div className="space-y-2 text-sm text-muted-foreground text-center">
-                                        <p>Te emparejaremos con jugadores de tu mismo rango de ELO.</p>
-                                        <p>Primero buscamos en tu región (3 min), luego globalmente.</p>
+                                    <RankBadge rank={profile.rank} size="lg" />
+                                    <div className="text-right">
+                                        <p className="text-2xl font-bold mt-2">{profile.elo}</p>
+                                        <p className="text-xs text-muted-foreground">ELO Rating</p>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
 
-                                <Alert variant="destructive">
-                                    <AlertTriangle className="h-4 w-4" />
-                                    <AlertDescription>
-                                        Se sancionará prohibiendo jugar a todo aquel que sea reportado y se verifique su incumplimiento de las normas.
-                                    </AlertDescription>
-                                </Alert>
-
-                                <div>
-                                    <h4 className="font-semibold mb-3 flex items-center justify-center gap-2">
-                                        <Shield className="h-4 w-4" />
-                                        Normas
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {MATCHMAKING_RULES.map((rule, index) => (
-                                            <div key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                                                <span className="text-primary font-bold mt-0.5">{index + 1}.</span>
-                                                <span>{rule}</span>
+                        <Card className="border-border/50">
+                            <CardHeader>
+                                <CardTitle className="text-center flex items-center justify-center gap-2">
+                                    <Search className="h-5 w-5" />
+                                    Búsqueda de Partida
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {isSearching ? (
+                                    <div className="text-center space-y-6 py-8">
+                                        <div className="relative">
+                                            <Loader2 className="h-16 w-16 animate-spin mx-auto text-primary" />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="h-12 w-12 rounded-full bg-primary/20 animate-ping" />
                                             </div>
-                                        ))}
+                                        </div>
+
+                                        <div>
+                                            {/* Title removed */}
+                                            <p className="text-muted-foreground mb-1">
+                                                {getSearchPhaseText()}
+                                            </p>
+                                            {/* ELO range removed */}
+
+                                            <div className="flex items-center justify-center gap-4 text-sm mt-4">
+                                                <Badge variant="secondary" className="gap-2">
+                                                    <Clock className="h-3 w-3" />
+                                                    {formatTime(searchTime)}
+                                                </Badge>
+                                                {/* Region badge removed */}
+                                            </div>
+
+                                            {/* Expansion message 1 removed */}
+                                            {/* Expansion message 2 removed */}
+                                        </div>
+
+                                        <Button
+                                            variant="destructive"
+                                            onClick={handleCancelSearch}
+                                            className="mt-4"
+                                        >
+                                            <XCircle className="h-4 w-4 mr-2" /> Cancelar búsqueda
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="text-center space-y-6 py-8">
+                                        <Trophy className="h-16 w-16 mx-auto text-primary opacity-50" />
+                                        <div>
+                                            <h3 className="text-xl font-bold mb-2">¿Listo para competir?</h3>
+                                            <p className="text-muted-foreground">
+                                                Encuentra oponentes de tu nivel y demuestra tus habilidades
+                                            </p>
+                                        </div>
+                                        <Button
+                                            size="lg"
+                                            onClick={handleStartSearch}
+                                            className="mt-4 gap-2"
+                                        >
+                                            <Search className="h-5 w-5" />
+                                            Buscar Ranked
+                                        </Button>
+                                    </div>
+                                )}
+
+                                <div className="border-t border-border/50 pt-6 space-y-4">
+                                    <div>
+                                        <h4 className="font-semibold mb-3 flex items-center justify-center gap-2">
+                                            <Trophy className="h-4 w-4" />
+                                            Cómo funciona
+                                        </h4>
+                                        <div className="space-y-2 text-sm text-muted-foreground text-center">
+                                            <p>Te emparejaremos con jugadores de tu mismo rango de ELO.</p>
+                                            <p>Primero buscamos en tu región (3 min), luego globalmente.</p>
+                                        </div>
+                                    </div>
+
+                                    <Alert variant="destructive">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertDescription>
+                                            Se sancionará prohibiendo jugar a todo aquel que sea reportado y se verifique su incumplimiento de las normas.
+                                        </AlertDescription>
+                                    </Alert>
+
+                                    <div>
+                                        <h4 className="font-semibold mb-3 flex items-center justify-center gap-2">
+                                            <Shield className="h-4 w-4" />
+                                            Normas
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {MATCHMAKING_RULES.map((rule, index) => (
+                                                <div key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                                    <span className="text-primary font-bold mt-0.5">{index + 1}.</span>
+                                                    <span>{rule}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </main>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </main>
+            </div>
         </div>
     );
 };

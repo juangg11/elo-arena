@@ -546,6 +546,13 @@ const MatchPage = () => {
                                 status: 'pending'
                             };
 
+                            // DEBUG: Show ID in toast to verify code version
+                            toast({
+                                title: "Debug Auto-Report",
+                                description: `Intentando auto-reporte con ID: ${userProfile.id}`,
+                            });
+                            console.log('Auto-report payload:', autoReportPayload);
+
                             const { data: reportData, error: reportError } = await supabase
                                 .from('reports')
                                 .insert(autoReportPayload as any)
@@ -556,7 +563,8 @@ const MatchPage = () => {
                                 console.error("Report error details:", JSON.stringify(reportError, null, 2));
                                 console.error("Report insert payload:", {
                                     match_id: matchId,
-                                    reporter_id: currentUser.id,
+                                    match_id: matchId,
+                                    reporter_id: userProfile.id,
                                     reason: reportDescription,
                                     description: reportDescription,
                                     status: 'pending'
@@ -804,6 +812,12 @@ const MatchPage = () => {
             const reporterId = userProfile.id;
             console.log('Creating report with verified reporter_id (profile_id):', reporterId);
             console.log('UserProfile object:', userProfile);
+
+            // DEBUG: Show ID in toast to verify code version
+            toast({
+                title: "Debug Info",
+                description: `Enviando reporte con ID: ${reporterId}`,
+            });
 
             let evidenceUrl: string | null = null;
             if (reportFile) {

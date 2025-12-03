@@ -43,13 +43,13 @@ const Index = () => {
 
       <div className="flex-1">
         {/* Hero Section */}
-        <section className="relative pt-24 pb-20 overflow-hidden">
+        <section className="relative pt-24 pb-24 overflow-hidden">
           <div
             className="absolute inset-0 opacity-50"
             style={{
               backgroundImage: `url(${heroBg})`,
               backgroundSize: 'cover',
-              backgroundPosition: 'center',
+              backgroundPosition: 'center -5%',
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/80 to-background" />

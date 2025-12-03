@@ -540,7 +540,7 @@ const MatchPage = () => {
                             // Use both 'reason' and 'description' to handle different schema versions
                             const autoReportPayload: any = {
                                 match_id: matchId,
-                                reporter_id: currentUser.id, // Use user_id (UUID from auth.users)
+                                reporter_id: userProfile.id, // Use profile_id (FK points to profiles table)
                                 reason: reportDescription,
                                 description: reportDescription,
                                 status: 'pending'
@@ -801,7 +801,7 @@ const MatchPage = () => {
                 return;
             }
 
-            const reporterId = authUser.id;
+            const reporterId = userProfile.id;
             console.log('Creating report with verified reporter_id (auth):', reporterId);
 
             let evidenceUrl: string | null = null;

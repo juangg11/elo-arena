@@ -1008,24 +1008,45 @@ const MatchPage = () => {
                         </AlertTitle>
                     </CardHeader>
 
-                    {/* ELO Preview */}
-                    {match.status === 'pending' && !myResult && (
-                        <div className="px-6 pb-2">
-                            <div className="bg-muted/30 rounded-lg p-3 text-center">
-                                <p className="text-xs text-muted-foreground mb-2">Puntos en juego</p>
-                                <div className="flex justify-center gap-6">
-                                    <div>
-                                        <span className="text-green-500 font-bold">+{Math.round(20 * (1 - 1 / (1 + Math.pow(10, ((match.player2_elo || 600) - (match.player1_elo || 600)) / 400))))}</span>
-                                        <p className="text-xs text-muted-foreground">Victoria</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-red-500 font-bold">-{Math.round(20 * (1 / (1 + Math.pow(10, ((match.player2_elo || 600) - (match.player1_elo || 600)) / 400))))}</span>
-                                        <p className="text-xs text-muted-foreground">Derrota</p>
+                    {/* ELO Preview - Personalized for each player */}
+                    {match.status === 'pending' && !myResult && (() => {
+                        // Get current player's ELO
+                        const myElo = userProfile?.elo || 600;
+                        const opponentElo = opponent?.elo || 600;
+
+                        // For preview, we don't have streak data readily available, so we use 0
+                        // This matches the initial calculation before fetching full profile data
+                        const myStreak = 0;
+                        const opponentStreak = 0;
+
+                        // Calculate what I would gain/lose if I win/lose
+                        // If I win: I'm the winner, opponent is the loser
+                        const ifIWin = calculateEloChange(myElo, opponentElo, myStreak, opponentStreak);
+                        // If I lose: opponent is the winner, I'm the loser  
+                        const ifILose = calculateEloChange(opponentElo, myElo, opponentStreak, myStreak);
+
+                        // My gains/losses
+                        const myWinGain = ifIWin.winnerGain;
+                        const myLoseLoss = ifILose.loserLoss;
+
+                        return (
+                            <div className="px-6 pb-2">
+                                <div className="bg-muted/30 rounded-lg p-3 text-center">
+                                    <p className="text-xs text-muted-foreground mb-2">Puntos en juego</p>
+                                    <div className="flex justify-center gap-6">
+                                        <div>
+                                            <span className="text-green-500 font-bold">+{myWinGain}</span>
+                                            <p className="text-xs text-muted-foreground">Victoria</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-red-500 font-bold">-{myLoseLoss}</span>
+                                            <p className="text-xs text-muted-foreground">Derrota</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                     <CardContent className="space-y-4">
                         {match.status === 'completed' ? (
                             <Alert className="bg-green-500/10 border-green-500/50">

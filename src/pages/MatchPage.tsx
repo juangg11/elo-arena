@@ -16,6 +16,7 @@ interface Profile {
     nickname: string;
     elo: number;
     avatar_url?: string | null;
+    current_streak?: number;
 }
 
 interface Match {
@@ -158,7 +159,7 @@ const MatchPage = () => {
 
                 const { data: profileData, error: pErr } = await supabase
                     .from("profiles")
-                    .select("id, nickname, elo, avatar_url")
+                    .select("id, nickname, elo, avatar_url, current_streak")
                     .eq("user_id", supabaseUser.id)
                     .single();
 
@@ -174,8 +175,8 @@ const MatchPage = () => {
                     .from("matches")
                     .select(`
               *,
-              profiles_player_a:profiles!matches_player1_id_fkey(id, nickname, elo, avatar_url),
-              profiles_player_b:profiles!matches_player2_id_fkey(id, nickname, elo, avatar_url)
+              profiles_player_a:profiles!matches_player1_id_fkey(id, nickname, elo, avatar_url, current_streak),
+              profiles_player_b:profiles!matches_player2_id_fkey(id, nickname, elo, avatar_url, current_streak)
           `)
                     .eq("id", matchId)
                     .single();
@@ -1014,10 +1015,9 @@ const MatchPage = () => {
                         const myElo = userProfile?.elo || 600;
                         const opponentElo = opponent?.elo || 600;
 
-                        // For preview, we don't have streak data readily available, so we use 0
-                        // This matches the initial calculation before fetching full profile data
-                        const myStreak = 0;
-                        const opponentStreak = 0;
+                        // Use real streaks from profiles
+                        const myStreak = userProfile?.current_streak || 0;
+                        const opponentStreak = opponent?.current_streak || 0;
 
                         // Calculate what I would gain/lose if I win/lose
                         // If I win: I'm the winner, opponent is the loser
@@ -1098,7 +1098,7 @@ const MatchPage = () => {
                                         {(() => {
                                             const myElo = userProfile?.elo || 600;
                                             const opponentElo = opponent?.elo || 600;
-                                            const ifIWin = calculateEloChange(myElo, opponentElo, 0, 0);
+                                            const ifIWin = calculateEloChange(myElo, opponentElo, userProfile?.current_streak || 0, opponent?.current_streak || 0);
                                             return <span className="text-xs">+{ifIWin.winnerGain} ELO</span>;
                                         })()}
                                     </Button>
@@ -1113,7 +1113,7 @@ const MatchPage = () => {
                                         {(() => {
                                             const myElo = userProfile?.elo || 600;
                                             const opponentElo = opponent?.elo || 600;
-                                            const ifILose = calculateEloChange(opponentElo, myElo, 0, 0);
+                                            const ifILose = calculateEloChange(opponentElo, myElo, opponent?.current_streak || 0, userProfile?.current_streak || 0);
                                             return <span className="text-xs">-{ifILose.loserLoss} ELO</span>;
                                         })()}
                                     </Button>

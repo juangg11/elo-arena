@@ -1095,6 +1095,12 @@ const MatchPage = () => {
                                     >
                                         <Trophy className="h-8 w-8" />
                                         <span>Victoria</span>
+                                        {(() => {
+                                            const myElo = userProfile?.elo || 600;
+                                            const opponentElo = opponent?.elo || 600;
+                                            const ifIWin = calculateEloChange(myElo, opponentElo, 0, 0);
+                                            return <span className="text-xs">+{ifIWin.winnerGain} ELO</span>;
+                                        })()}
                                     </Button>
                                     <Button
                                         variant={myResult === 'lose' ? "default" : "outline"}
@@ -1104,6 +1110,12 @@ const MatchPage = () => {
                                     >
                                         <XCircle className="h-8 w-8" />
                                         <span>Derrota</span>
+                                        {(() => {
+                                            const myElo = userProfile?.elo || 600;
+                                            const opponentElo = opponent?.elo || 600;
+                                            const ifILose = calculateEloChange(opponentElo, myElo, 0, 0);
+                                            return <span className="text-xs">-{ifILose.loserLoss} ELO</span>;
+                                        })()}
                                     </Button>
                                 </div>
                                 {myResult && (

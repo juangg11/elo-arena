@@ -1028,24 +1028,6 @@ const MatchPage = () => {
                         // My gains/losses
                         const myWinGain = ifIWin.winnerGain;
                         const myLoseLoss = ifILose.loserLoss;
-
-                        return (
-                            <div className="px-6 pb-2">
-                                <div className="bg-muted/30 rounded-lg p-3 text-center">
-                                    <p className="text-xs text-muted-foreground mb-2">Puntos en juego</p>
-                                    <div className="flex justify-center gap-6">
-                                        <div>
-                                            <span className="text-green-500 font-bold">+{myWinGain}</span>
-                                            <p className="text-xs text-muted-foreground">Victoria</p>
-                                        </div>
-                                        <div>
-                                            <span className="text-red-500 font-bold">-{myLoseLoss}</span>
-                                            <p className="text-xs text-muted-foreground">Derrota</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
                     })()}
                     <CardContent className="space-y-4">
                         {match.status === 'completed' ? (

@@ -516,7 +516,7 @@ const Matchmaking = () => {
     }
 
     return (
-        <div className="h-screen bg-background relative overflow-hidden">
+        <div className="min-h-screen bg-background relative">
             {/* Background Image Layer */}
             <div
                 className="fixed inset-0 top-16 z-0"

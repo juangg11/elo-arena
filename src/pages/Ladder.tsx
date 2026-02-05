@@ -27,19 +27,19 @@ interface Player {
   rankName: string;
   wins: number;
   losses: number;
-  region: string;
+  team: string | null;
   avatar_url: string | null;
   discord: string | null;
 }
 
 const Ladder = () => {
-  const [selectedRegion, setSelectedRegion] = useState("global");
+  const [selectedTeam, setSelectedTeam] = useState("global");
   const [leaderboard, setLeaderboard] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [selectedRegion]);
+  }, [selectedTeam]);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
@@ -50,8 +50,8 @@ const Ladder = () => {
       .order("elo", { ascending: false })
       .limit(50);
 
-    if (selectedRegion !== "global") {
-      query = query.eq("region", selectedRegion);
+    if (selectedTeam !== "global") {
+      query = query.eq("team", selectedTeam);
     }
 
     const { data, error } = await query;
@@ -64,7 +64,7 @@ const Ladder = () => {
         rankName: profile.rank,
         wins: profile.wins,
         losses: profile.games_played - profile.wins,
-        region: profile.region,
+        team: profile.team,
         avatar_url: profile.avatar_url,
         discord: profile.discord,
       }));
@@ -85,7 +85,7 @@ const Ladder = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <Tabs defaultValue="global" onValueChange={setSelectedRegion} className="space-y-0 flex-1 flex flex-col">
+      <Tabs defaultValue="global" onValueChange={setSelectedTeam} className="space-y-0 flex-1 flex flex-col">
         {/* Hero Section with Background */}
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div
@@ -109,11 +109,10 @@ const Ladder = () => {
                 </p>
               </div>
 
-              <TabsList className="grid w-full max-w-2xl grid-cols-4 mx-auto bg-background/50 backdrop-blur-sm border border-border/50">
+              <TabsList className="grid w-full max-w-2xl grid-cols-3 mx-auto bg-background/50 backdrop-blur-sm border border-border/50">
                 <TabsTrigger value="global">Global</TabsTrigger>
-                <TabsTrigger value="EU">Europa</TabsTrigger>
-                <TabsTrigger value="AM">America</TabsTrigger>
-                <TabsTrigger value="AS">Asia</TabsTrigger>
+                <TabsTrigger value="A">Team A</TabsTrigger>
+                <TabsTrigger value="B">Team B</TabsTrigger>
               </TabsList>
             </div>
           </div>
@@ -133,13 +132,13 @@ const Ladder = () => {
                   <div className="text-center py-8 text-muted-foreground">Cargando...</div>
                 ) : leaderboard.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    No hay jugadores en esta región
+                    No hay jugadores en este equipo
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {leaderboard.slice(0, 10).map((player) => (
                       <div
-                        key={`${player.region}-${player.nickname}-${player.rank}`}
+                        key={`${player.team}-${player.nickname}-${player.rank}`}
                         className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50"
                       >
                         <div className="flex items-center gap-4">

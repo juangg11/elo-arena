@@ -8,16 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Trophy, Clock, Users, AlertTriangle, Shield, XCircle } from "lucide-react";
+import { Loader2, Search, Trophy, Clock, AlertTriangle, Shield, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getAdjacentRanks, getRankFromElo } from "@/lib/eloSystem";
 
 interface Profile {
     id: string;
     nickname: string;
     elo: number;
     rank: string;
-    region: string;
 }
 
 // Interfaz para la tabla 'matchmaking_queue'
@@ -26,7 +24,6 @@ interface MatchQueueEntry {
     user_id: string;
     profile_id: string;
     elo: number;
-    region: string;
     status: 'searching' | 'matched';
     created_at: string;
     matched_with?: string | null;
@@ -45,10 +42,7 @@ const MATCHMAKING_RULES = [
     "En caso de disputa con el resultado saca captura del partido."
 ];
 
-// Rank-based matchmaking phases (no region filtering)
-const PHASE_1_TIME = 120; // 0-2 min: Same rank only 120
-const PHASE_2_TIME = 240; // 2-4 min: Adjacent ranks (±1) 240
-const PHASE_3_TIME = 360; // 4-6 min: ±2 ranks (max expansion) 360
+// Simplified matchmaking - no filters, just find anyone available
 
 const Matchmaking = () => {
     const [user, setUser] = useState<any>(null);
@@ -57,7 +51,6 @@ const Matchmaking = () => {
     const [searchTime, setSearchTime] = useState(0);
     const [loading, setLoading] = useState(true);
     const [queueId, setQueueId] = useState<string | null>(null);
-    const [searchPhase, setSearchPhase] = useState<'region' | 'global' | 'any'>('region');
     const navigate = useNavigate();
     const { toast } = useToast();
 
@@ -81,24 +74,10 @@ const Matchmaking = () => {
         let interval: NodeJS.Timeout;
         if (isSearching) {
             interval = setInterval(() => {
-                setSearchTime((prev) => {
-                    const newTime = prev + 1;
-
-                    // Update phase based on rank expansion, not region
-                    if (newTime >= PHASE_3_TIME) {
-                        setSearchPhase('any'); // ±2 ranks
-                    } else if (newTime >= PHASE_2_TIME) {
-                        setSearchPhase('global'); // ±1 rank
-                    } else {
-                        setSearchPhase('region'); // Same rank
-                    }
-
-                    return newTime;
-                });
+                setSearchTime((prev) => prev + 1);
             }, 1000);
         } else {
             setSearchTime(0);
-            setSearchPhase('region');
         }
         return () => clearInterval(interval);
     }, [isSearching]);
@@ -145,37 +124,13 @@ const Matchmaking = () => {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const getRegionName = (regionCode: string) => {
-        const regions: { [key: string]: string } = {
-            global: "Global",
-            EU: "Europa",
-            AM: "América",
-            AS: "Asia"
-        };
-        return regions[regionCode] || regionCode;
-    };
+
 
     const getSearchPhaseText = () => {
-        if (!profile) return 'Buscando...';
-
-        const currentTime = searchTime;
-        const myRank = profile.rank || 'novato';
-
-        if (currentTime < PHASE_1_TIME) {
-            // 0-2 min: Same rank only
-            return `Buscando en rango: ${myRank.toUpperCase()}`;
-        } else if (currentTime < PHASE_2_TIME) {
-            // 2-4 min: Adjacent ranks (±1)
-            const adjacentRanks = getAdjacentRanks(myRank, 1);
-            return `Buscando en rangos: ${adjacentRanks.map(r => r.toUpperCase()).join(', ')}`;
-        } else {
-            // 4-6 min: ±2 ranks
-            const expandedRanks = getAdjacentRanks(myRank, 2);
-            return `Buscando en rangos: ${expandedRanks.map(r => r.toUpperCase()).join(', ')}`;
-        }
+        return 'Buscando oponente disponible...';
     };
 
-    // Función de búsqueda de oponente (rank-based)
+    // Función de búsqueda de oponente (simplified - no filters)
     const findMatch = async (currentQueueId?: string) => {
         const activeQueueId = currentQueueId || queueIdRef.current;
         if (!profile || !activeQueueId) {
@@ -184,37 +139,12 @@ const Matchmaking = () => {
         }
 
         try {
-            const currentTime = searchTimeRef.current;
-            const myRank = profile.rank || 'novato';
-
-            // Determine which ranks to search based on time
-            let targetRanks: string[];
-            let rankDistance: number;
-
-            if (currentTime < PHASE_1_TIME) {
-                // Phase 1 (0-2 min): Same rank only
-                targetRanks = [myRank];
-                rankDistance = 0;
-            } else if (currentTime < PHASE_2_TIME) {
-                // Phase 2 (2-4 min): Adjacent ranks (±1)
-                targetRanks = getAdjacentRanks(myRank, 1);
-                rankDistance = 1;
-            } else {
-                // Phase 3 (4-6 min): ±2 ranks (max expansion)
-                targetRanks = getAdjacentRanks(myRank, 2);
-                rankDistance = 2;
-            }
-
-            console.log('Searching for opponents...', {
+            console.log('Searching for any available opponent...', {
                 myQueueId: activeQueueId,
-                myProfileId: profile.id,
-                myRank,
-                targetRanks,
-                rankDistance,
-                searchTime: currentTime
+                myProfileId: profile.id
             });
 
-            // Get all searching players
+            // Get all searching players (no filters)
             const { data: allMatches, error } = await supabase
                 .from('matchmaking_queue' as any)
                 .select('*')
@@ -233,48 +163,14 @@ const Matchmaking = () => {
                 return;
             }
 
-            // Get profiles to filter by rank
-            const profileIds = allMatches.map((m: any) => m.profile_id);
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, rank')
-                .in('id', profileIds);
+            console.log('Potential matches found:', allMatches.length);
 
-            if (!profiles) {
-                console.log('Could not fetch profiles');
-                return;
-            }
+            // Pick a random opponent
+            const randomIndex = Math.floor(Math.random() * allMatches.length);
+            const randomMatch = allMatches[randomIndex] as unknown as MatchQueueEntry;
 
-            // Create a map of profile_id -> rank
-            const rankMap = new Map(profiles.map((p: any) => [p.id, p.rank]));
-
-            // Filter matches by rank
-            const matchesInRank = allMatches.filter((m: any) => {
-                const playerRank = rankMap.get(m.profile_id);
-                return playerRank && targetRanks.includes(playerRank);
-            });
-
-            console.log('Potential matches found:', matchesInRank.length, 'in ranks:', targetRanks);
-
-            if (matchesInRank.length > 0) {
-                const matchesTyped = matchesInRank as unknown as MatchQueueEntry[];
-
-                // Find best match prioritizing ELO similarity
-                let bestMatch: MatchQueueEntry = matchesTyped[0];
-                let bestScore = Math.abs(profile.elo - matchesTyped[0].elo);
-
-                for (const match of matchesTyped) {
-                    const eloDiff = Math.abs(profile.elo - match.elo);
-
-                    if (eloDiff < bestScore) {
-                        bestScore = eloDiff;
-                        bestMatch = match;
-                    }
-                }
-
-                console.log('Best match selected:', bestMatch, 'ELO diff:', bestScore);
-                await createMatch(bestMatch, activeQueueId);
-            }
+            console.log('Random match selected:', randomMatch);
+            await createMatch(randomMatch, activeQueueId);
         } catch (error) {
             console.error('Error en findMatch:', error);
         }
@@ -399,7 +295,6 @@ const Matchmaking = () => {
                     user_id: user.id,
                     profile_id: profile.id,
                     elo: profile.elo,
-                    region: profile.region,
                     status: 'searching'
                 })
                 .select() // Solicitamos el objeto completo para casteo
@@ -415,7 +310,7 @@ const Matchmaking = () => {
 
             toast({
                 title: "Buscando partida",
-                description: `Buscando oponente en ${getRegionName(profile.region)}...`,
+                description: "Buscando oponente...",
             });
 
             // Buscar inmediatamente pasando el queueId directamente
@@ -539,10 +434,6 @@ const Matchmaking = () => {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <h3 className="text-2xl font-bold mb-1">{profile.nickname}</h3>
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                            <Users className="h-4 w-4" />
-                                            <span className="text-sm">{getRegionName(profile.region)}</span>
-                                        </div>
                                     </div>
                                     <RankBadge rank={profile.rank} size="lg" />
                                     <div className="text-right">
@@ -624,8 +515,8 @@ const Matchmaking = () => {
                                             Cómo funciona
                                         </h4>
                                         <div className="space-y-2 text-sm text-muted-foreground text-center">
-                                            <p>Te emparejaremos con jugadores de tu mismo rango de ELO.</p>
-                                            <p>Primero buscamos en tu región (3 min), luego globalmente.</p>
+                                            <p>Te emparejaremos con cualquier jugador disponible.</p>
+                                            <p>La búsqueda es completamente aleatoria para partidas más rápidas.</p>
                                         </div>
                                     </div>
 

@@ -15,7 +15,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
-  const [region, setRegion] = useState("ES");
+  const [team, setTeam] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -56,7 +56,7 @@ const Auth = () => {
       email,
       password,
       options: {
-        data: { nickname, region },
+        data: { nickname, team },
       },
     });
 
@@ -205,15 +205,15 @@ const Auth = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-region">Región</Label>
-                    <Select value={region} onValueChange={setRegion}>
-                      <SelectTrigger id="signup-region">
-                        <SelectValue placeholder="Selecciona tu región" />
+                    <Label htmlFor="signup-team">Equipo (Opcional)</Label>
+                    <Select value={team || "none"} onValueChange={(val) => setTeam(val === "none" ? null : val)}>
+                      <SelectTrigger id="signup-team">
+                        <SelectValue placeholder="Selecciona tu equipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="EU">Europa</SelectItem>
-                        <SelectItem value="AM">América</SelectItem>
-                        <SelectItem value="AS">Asia</SelectItem>
+                        <SelectItem value="none">Ninguno</SelectItem>
+                        <SelectItem value="A">Team A</SelectItem>
+                        <SelectItem value="B">Team B</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { User, Edit, Save, X, Upload, Loader2, Trophy } from "lucide-react";
 import Footer from "@/components/Footer";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DiscordIcon = () => (
     <svg
@@ -27,7 +28,7 @@ interface ProfileData {
     nickname: string;
     elo: number;
     rank: string;
-    region: string;
+    team: string | null;
     games_played: number;
     wins: number;
     avatar_url: string | null;
@@ -48,6 +49,7 @@ const Profile = () => {
         nickname: "",
         avatarUrl: "",
         discord: "",
+        team: null as string | null,
     });
 
     useEffect(() => {
@@ -110,6 +112,7 @@ const Profile = () => {
                 nickname: profileData.nickname,
                 avatarUrl: profileData.avatar_url || "",
                 discord: profileData.discord || "",
+                team: profileData.team,
             });
         }
 
@@ -218,6 +221,7 @@ const Profile = () => {
                     nickname: editForm.nickname,
                     avatar_url: editForm.avatarUrl || null,
                     discord: editForm.discord || null,
+                    team: editForm.team,
                 })
                 .eq("user_id", user.id);
 
@@ -246,6 +250,7 @@ const Profile = () => {
             nickname: profile?.nickname || "",
             avatarUrl: profile?.avatar_url || "",
             discord: profile?.discord || "",
+            team: profile?.team || null,
         });
         setIsEditing(false);
     };
@@ -355,10 +360,23 @@ const Profile = () => {
 
 
                                         <div className="flex items-center gap-2">
-                                            <Label className="text-base">Región:</Label>
-                                            <p className="text-lg text-muted-foreground font-medium">
-                                                {profile.region}
-                                            </p>
+                                            <Label className="text-base">Equipo:</Label>
+                                            {isEditing ? (
+                                                <Select value={editForm.team || "none"} onValueChange={(val) => setEditForm(prev => ({ ...prev, team: val === "none" ? null : val }))}>
+                                                    <SelectTrigger className="h-8 w-48 border-border/50">
+                                                        <SelectValue placeholder="Selecciona equipo" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="none">Ninguno</SelectItem>
+                                                        <SelectItem value="A">Team A</SelectItem>
+                                                        <SelectItem value="B">Team B</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <p className="text-lg text-muted-foreground font-medium">
+                                                    {profile.team ? `Team ${profile.team}` : "Ninguno"}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="flex items-center gap-2">

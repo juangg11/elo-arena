@@ -20,7 +20,7 @@ export async function sendDiscordNotification(profile: Profile): Promise<void> {
     try {
         const embed = {
             title: "🎮 There is someone looking for a match!",
-            description: "👉 **(https://elo-arena-kappa.vercel.app)**",
+            description: "👉 **https://elo-arena-kappa.vercel.app** @RANKEDS",
             color: 0x5865F2,
             fields: [
                 {

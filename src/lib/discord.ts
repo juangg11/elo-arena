@@ -11,7 +11,7 @@ interface Profile {
  */
 export async function sendDiscordNotification(profile: Profile): Promise<void> {
     const webhookUrl = import.meta.env.VITE_DISCORD_WEBHOOK_URL;
-    
+
     if (!webhookUrl) {
         console.warn('Discord webhook URL not configured');
         return;
@@ -19,14 +19,10 @@ export async function sendDiscordNotification(profile: Profile): Promise<void> {
 
     try {
         const embed = {
-            title: "🎮 Nuevo jugador en cola",
-            color: 0x5865F2, // Discord blurple color
+            title: "🎮 There is someone looking for a match!",
+            description: "👉 **(https://elo-arena-kappa.vercel.app)**",
+            color: 0x5865F2,
             fields: [
-                {
-                    name: "Jugador",
-                    value: profile.nickname,
-                    inline: true
-                },
                 {
                     name: "ELO",
                     value: profile.elo.toString(),

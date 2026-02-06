@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Trophy, Clock, AlertTriangle, Shield, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { sendDiscordNotification } from "@/lib/discord";
 
 interface Profile {
     id: string;
@@ -312,6 +313,11 @@ const Matchmaking = () => {
                 title: "Buscando partida",
                 description: "Buscando oponente...",
             });
+
+            // Send Discord notification
+            sendDiscordNotification(profile).catch(err =>
+                console.error('Discord notification failed:', err)
+            );
 
             // Buscar inmediatamente pasando el queueId directamente
             findMatch(queueEntry.id);
